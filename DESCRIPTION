@@ -3,7 +3,7 @@ Title: meta-analysis using generalized linear mixed effects model with aggregate
 Version: 0.0.1
 Authors@R: 
     person("Keisuke", "Hanada", , "keisuke.hanada@gmail.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Description: The metaGLMM package extends traditional random-effects meta-analysis by embedding it within a generalized linear mixed-effects model framework, thereby enabling covariate adjustment and support for non-normal responses. This methodology was introduced in Hanada (2025).
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -17,3 +17,4 @@ Suggests:
     knitr,
     rmarkdown
 VignetteBuilder: knitr
+BuildVignettes: yes
