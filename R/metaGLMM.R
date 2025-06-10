@@ -6,13 +6,13 @@
 #'@param ni subjects in each study.
 #'@param tau2 a value of between-study variance.
 #'@param family a family objects for models.
-#'@param tau2_var If FALSE (default), tau2 is estimated. If TRUE, assume tau2 is true value.
+#'@param tau2_var If TRUE (default), tau2 is estimated. If FALSE, assume tau2 is true value.
 #'@param rstdnorm random numbers. The default is 5000 quasi-random values by Sobol' quasi-random sequences
 #'
 #'@return object of meta-analysis under generalized linear mixed effects model
 #'
 #'@export
-metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
+metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
                  rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000)){
 
   ## set initial value

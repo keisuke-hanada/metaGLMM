@@ -1,6 +1,6 @@
 Package: metaGLMM
 Title: meta-analysis using generalized linear mixed effects model with aggregate data
-Version: 0.0.0.9000
+Version: 0.0.1
 Authors@R: 
     person("Keisuke", "Hanada", , "keisuke.hanada@gmail.com", role = c("aut", "cre"))
 Description: What the package does (one paragraph).
@@ -11,3 +11,8 @@ RoxygenNote: 7.3.2
 Imports:
   bbmle,
   qrng
+LazyData: true
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

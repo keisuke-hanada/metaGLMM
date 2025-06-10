@@ -23,6 +23,7 @@ likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="
   strata <- length(yk)
   tau2.len <- length(tau2)
   tau2 <- max(tau2, tau2.min)
+  n.monte <- length(rstdnorm)
 
 
   ## model spesific function
@@ -83,31 +84,16 @@ likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="
   return(total)
 
 }
-#'simple logSumExp funciton
-#'
-#'@param x value of between-study variance.
-#'
-#'@return value of logSumExp function.
-#'
-#'@export
+
+
+
 logSumExp_simple <- function(x) {
   max_x <- max(x)
   max_x + log(sum(exp(x - max_x)))
 }
-#'likelihood function
-#'
-#'@param formula formula of meta-analysis.
-#'@param data data of meta-analysis.
-#'@param vi variances in each study.
-#'@param ni subjects in each study.
-#'@param tau2 a value of between-study variance.
-#'@param family a family objects for models.
-#'@param tau2_var If FALSE (default), tau2 is estimated. If TRUE, assume tau2 is true value.
-#'@param rstdnorm random numbers. The default is 5000 quasi-random values by Sobol' quasi-random sequences
-#'
-#'@return function of likelihood
-#'
-#'@export
+
+
+
 make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
                         rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000), ...) {
   trm <- terms(formula, data = data)

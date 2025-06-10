@@ -11,7 +11,7 @@ metaGLMM(
   ni,
   tau2,
   family,
-  tau2_var = FALSE,
+  tau2_var = TRUE,
   rstdnorm = qnorm((qrng::sobol(5000, d = 1, scrambling = 1) * (5000 - 1) + 0.5)/5000)
 )
 }
@@ -28,7 +28,7 @@ metaGLMM(
 
 \item{family}{a family objects for models.}
 
-\item{tau2_var}{If FALSE (default), tau2 is estimated. If TRUE, assume tau2 is true value.}
+\item{tau2_var}{If TRUE (default), tau2 is estimated. If FALSE, assume tau2 is true value.}
 
 \item{rstdnorm}{random numbers. The default is 5000 quasi-random values by Sobol' quasi-random sequences}
 }
