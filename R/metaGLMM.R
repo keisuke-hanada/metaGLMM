@@ -88,8 +88,8 @@ ci_metaGLMM <- function(object, parm=names(coef(object))[-length(coef(object))],
 #'@export
 confint_AN <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95){
 
-  lower <- coef(prop2)[parm] - qnorm(1-(1-level)/2) * sqrt(diag(vcov(prop2))[parm])
-  upper <- coef(prop2)[parm] + qnorm(1-(1-level)/2) * sqrt(diag(vcov(prop2))[parm])
+  lower <- coef(object)[parm] - qnorm(1-(1-level)/2) * sqrt(diag(vcov(object))[parm])
+  upper <- coef(object)[parm] + qnorm(1-(1-level)/2) * sqrt(diag(vcov(object))[parm])
 
   val <- cbind(lower, upper)
 
