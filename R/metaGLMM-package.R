@@ -11,6 +11,7 @@
 #'@export likelihood
 #'@export metaGLMM
 #'@export ci_metaGLMM
+#'@export confint_AN
 #'@export confint_PL
 #'@export confint_SBC
 #'

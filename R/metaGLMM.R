@@ -63,17 +63,40 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
 #'@export
 ci_metaGLMM <- function(object, parm=names(coef(object))[-length(coef(object))],
                         method="PLSBC", level=0.95, renge.c=30){
+
   if (method=="PLSBC") {
-    res <- confint_SBC(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30)
+    res <- confint_SBC(object, parm=parm, level=level, renge.c=renge.c)
   } else if (method=="PL") {
-    res <- confint_PL(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30)
-  }else {
-    message("method should be 'PL' or 'PLSBC'.")
+    res <- confint_PL(object, parm=parm, level=level, renge.c=renge.c)
+  } else if (method=="AN") {
+    res <- confint_AN(object, parm=parm, level=level)
+  } else {
+    message("method should be 'AN', PL', or 'PLSBC'.")
   }
 
   return(res)
 
 }
+#' confidence interval for metaGLMM object using normal approximation.
+#'
+#'@param object object of metaGLMM function.
+#'@param parm a vector of parameter names for estimating confidence interval.
+#'@param level a value of significance level. The default is 0.95.
+#'
+#'@return a matrix of confidence interval using normal approximation.
+#'
+#'@export
+confint_AN <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95){
+
+  lower <- coef(prop2)[parm] - qnorm(1-(1-level)/2) * sqrt(diag(vcov(prop2))[parm])
+  upper <- coef(prop2)[parm] + qnorm(1-(1-level)/2) * sqrt(diag(vcov(prop2))[parm])
+
+  val <- cbind(lower, upper)
+
+  return(val)
+
+}
+
 #' confidence interval for metaGLMM object using profile likelihood method.
 #'
 #'@param object object of metaGLMM function.
