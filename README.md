@@ -1,6 +1,6 @@
-The metaGLMM package extends traditional random-effects meta-analysis by embedding it within a generalized linear mixed-effects model framework, thereby enabling covariate adjustment and support for non-normal responses. This methodology was introduced in Hanada & Sugimoto (2025); please be sure to cite that paper when using this package.
+The metaGLMM package extends traditional random-effects meta-analysis by embedding it within a generalized linear mixed-effects model framework, thereby enabling covariate adjustment and support for non-normal responses. This methodology was introduced in [Hanada & Sugimoto (2025)](https://arxiv.org/abs/2508.08758); please be sure to cite that paper when using this package.
 
-- Hanada, K. & Sugimoto, T. (2025). Random-effects meta-analysis via generalized linear mixed models: A Bartlett-corrected approach for few studies. *arXiv*, xxxx.
+- Hanada, K. & Sugimoto, T. (2025). Random-effects meta-analysis via generalized linear mixed models: A Bartlett-corrected approach for few studies. *arXiv*, doi: 10.48550/arXiv.2508.08758.
 
 
 ## install
