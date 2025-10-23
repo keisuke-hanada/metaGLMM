@@ -1,0 +1,15 @@
+citHeader("To cite yourPackage in publications, please use:")
+
+citEntry(
+  entry    = "Article",
+  title    = "Random-effects meta-analysis via generalized linear mixed models: A Bartlett-corrected approach for few studies.",
+  author   = c(person("Keisuke", "Hanada"), person("Tomoyuki", "Sugimoto")),
+  journal  = "arXiv",
+  year     = "2025",
+  doi      = "10.48550/arXiv.2508.08758",
+  textVersion = paste(
+    "Hanada K. & Sugimoto. T (2025). Random-effects meta-analysis via generalized linear mixed models: A Bartlett-corrected approach for few studies.",
+    "arXiv pre-print",
+    "doi:10.48550/arXiv.2508.08758."
+  )
+)
