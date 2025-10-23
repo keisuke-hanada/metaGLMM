@@ -12,3 +12,369 @@ remotes::install_github("keisuke-hanada/metaGLMM", build_vignettes = TRUE)
 Please see our vignettes: <https://github.com/keisuke-hanada/metaGLMM/blob/main/vignettes/metaGLMM-examples.Rmd>.
 
 
+
+
+## Loading libraries
+
+Set up of Our package and seed value.
+```{r setup, eval=FALSE}
+set.seed(1234)
+
+library(dplyr)
+library(ggplot2)
+
+library(metaGLMM) # our package
+```
+
+
+## Example 1: Binary distributed outcome
+
+### Data Preparation
+
+```{r example1, eval=FALSE}
+data(chu2020, package="metaGLMM")
+dat <- chu2020
+dat
+#>     Study x1 n1 x0 n0
+#> 1 Study 1  0 76 12 42
+#> 2 Study 2  0 13  2  2
+#> 3 Study 3  0 17  2  3
+#> 4 Study 4  5 47  7 36
+#> 5 Study 5  0  4  3 33
+#> 6 Study 6  0 50  0 76
+#> 7 Study 7  0 41  0 37
+
+
+# Transforming outcomes
+dat2 <- data.frame(
+  yk = c(dat$x1, dat$x0),
+  zk = rep(1:0, each=7),
+  nk = c(dat$n1, dat$n0),
+  Study = c(dat$Study, dat$Study)
+) %>%
+  mutate(
+    yk = yk / nk,
+    vk = 1/(nk*yk) + 1/(nk-nk*yk)
+  )
+dat2
+#>            yk zk nk   Study        vk
+#> 1  0.00000000  1 76 Study 1       Inf
+#> 2  0.00000000  1 13 Study 2       Inf
+#> 3  0.00000000  1 17 Study 3       Inf
+#> 4  0.10638298  1 47 Study 4 0.2238095
+#> 5  0.00000000  1  4 Study 5       Inf
+#> 6  0.00000000  1 50 Study 6       Inf
+#> 7  0.00000000  1 41 Study 7       Inf
+#> 8  0.28571429  0 42 Study 1 0.1166667
+#> 9  1.00000000  0  2 Study 2       Inf
+#> 10 0.66666667  0  3 Study 3 1.5000000
+#> 11 0.19444444  0 36 Study 4 0.1773399
+#> 12 0.09090909  0 33 Study 5 0.3666667
+#> 13 0.00000000  0 76 Study 6       Inf
+#> 14 0.00000000  0 37 Study 7       Inf
+```
+
+
+### Apply meta-analysis for GLMM
+
+```{r example1-2, eval=FALSE}
+formula <- yk ~ 1 + zk
+dat3 <- dat2 %>% model.frame(formula=formula)
+
+ma.grma <- metaGLMM(formula=formula, data=dat3, vi=dat2$vk, ni=dat2$nk, tau2=NA,
+                family=binomial(link="logit"), tau2_var=TRUE)
+summary(ma.grma)
+#> Maximum likelihood estimation
+#> 
+#> Call:
+#> bbmle::mle2(minuslogl = ll, start = c(beta_init, tau2 = 1), method = "L-BFGS-B", 
+#>     skip.hessian = FALSE, lower = lower, upper = upper, control = list(maxit = 20000))
+#> 
+#> Coefficients:
+#>             Estimate Std. Error z value   Pr(z)  
+#> (Intercept)  -2.0223     1.2578 -1.6078 0.10788  
+#> zk           -5.0609     2.6330 -1.9221 0.05459 .
+#> tau2          9.2270     7.7225  1.1948 0.23216  
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> -2 log L: 173.5501
+
+
+
+### confidence interval by profile likelihood
+ci.pl <- confint_PL(ma.grma, parm="zk")
+ci.pl
+#>        lower     upper
+#> zk -14.29106 -0.879445
+
+
+### confidence interval by profile likelihood with simple Bartlett correction
+ci.plsbc <- confint_SBC(ma.grma, parm="zk")
+ci.plsbc
+#>       lower        upper
+#> zk -17.7262 -0.004056635
+
+
+```
+
+
+
+## Example 2: Poisson distributed outcome
+
+### Data Preparation
+
+```{r example2, eval=FALSE}
+data(rutter2021, package="metaGLMM")
+dat <- rutter2021
+dat
+#>                      Study Year    Sex Events   Time
+#> 1         Watts et al 2009 2009 Female     13   9.04
+#> 2        Dreyer et al 2011 2011 Female     16  23.75
+#> 3        Birlik et al 2015 2015 Female     38  18.47
+#> 4  Mohammed and Mandl 2015 2015 Female     13   9.38
+#> 5  Romero-Gomez et al 2015 2015 Female      5   2.27
+#> 6        Nesher et al 2016 2016 Female     11   2.72
+#> 7       Saritas et al 2016 2016 Female     19   3.43
+#> 8  Gudbrandsson et al 2017 2017 Female     68  26.00
+#> 9         Makin et al 2017 2017 Female     13  15.48
+#> 10         Park et al 2017 2017 Female    497 127.50
+#> 11      Kanecki et al 2018 2018 Female    154  96.20
+#> 12        Watts et al 2009 2009   Male      1   8.46
+#> 13       Dreyer et al 2011 2011   Male      3  23.75
+#> 14       Birlik et al 2015 2015   Male      3  18.47
+#> 15 Mohammed and Mandl 2015 2015   Male      0   9.19
+#> 16 Romero-Gomez et al 2015 2015   Male      0   2.27
+#> 17       Nesher et al 2016 2016   Male      0   2.51
+#> 18      Saritas et al 2016 2016   Male      4   3.34
+#> 19 Gudbrandsson et al 2017 2017   Male     10  26.00
+#> 20        Makin et al 2017 2017   Male      0  15.48
+#> 21         Park et al 2017 2017   Male    115 127.50
+#> 22      Kanecki et al 2018 2018   Male     23  96.20
+
+
+
+# Standardize time variable
+dat$Year <- dat$Year - min(dat$Year)
+
+
+# Transforming outcomes
+dat2 <- data.frame(
+  yk = dat$Events,
+  tk = dat$Time,
+  xk = dat$Sex,
+  year = dat$Year,
+  Study = dat$Study
+) %>%
+  mutate(
+    thetak = log((pmax(0.5, yk))/tk),
+    yk = yk / tk,
+    vk = 1 / pmax(0.5,dat$Events)
+  )
+dat2
+#>           yk     tk     xk year                   Study     thetak          vk
+#> 1  1.4380531   9.04 Female    0        Watts et al 2009  0.3632902 0.076923077
+#> 2  0.6736842  23.75 Female    2       Dreyer et al 2011 -0.3949938 0.062500000
+#> 3  2.0573904  18.47 Female    6       Birlik et al 2015  0.7214384 0.026315789
+#> 4  1.3859275   9.38 Female    6 Mohammed and Mandl 2015  0.3263696 0.076923077
+#> 5  2.2026432   2.27 Female    6 Romero-Gomez et al 2015  0.7896581 0.200000000
+#> 6  4.0441176   2.72 Female    7       Nesher et al 2016  1.3972634 0.090909091
+#> 7  5.5393586   3.43 Female    7      Saritas et al 2016  1.7118787 0.052631579
+#> 8  2.6153846  26.00 Female    8 Gudbrandsson et al 2017  0.9614112 0.014705882
+#> 9  0.8397933  15.48 Female    8        Makin et al 2017 -0.1745995 0.076923077
+#> 10 3.8980392 127.50 Female    8         Park et al 2017  1.3604737 0.002012072
+#> 11 1.6008316  96.20 Female    9      Kanecki et al 2018  0.4705232 0.006493506
+#> 12 0.1182033   8.46   Male    0        Watts et al 2009 -2.1353492 1.000000000
+#> 13 0.1263158  23.75   Male    2       Dreyer et al 2011 -2.0689702 0.333333333
+#> 14 0.1624256  18.47   Male    6       Birlik et al 2015 -1.8175355 0.333333333
+#> 15 0.0000000   9.19   Male    6 Mohammed and Mandl 2015 -2.9112631 2.000000000
+#> 16 0.0000000   2.27   Male    6 Romero-Gomez et al 2015 -1.5129270 2.000000000
+#> 17 0.0000000   2.51   Male    7       Nesher et al 2016 -1.6134299 2.000000000
+#> 18 1.1976048   3.34   Male    7      Saritas et al 2016  0.1803236 0.250000000
+#> 19 0.3846154  26.00   Male    8 Gudbrandsson et al 2017 -0.9555114 0.100000000
+#> 20 0.0000000  15.48   Male    8        Makin et al 2017 -3.4326960 2.000000000
+#> 21 0.9019608 127.50   Male    8         Park et al 2017 -0.1031842 0.008695652
+#> 22 0.2390852  96.20   Male    9      Kanecki et al 2018 -1.4309351 0.043478261
+
+```
+
+
+### Apply meta-analysis for GLMM
+
+```{r example2-2, eval=FALSE}
+
+formula <- yk ~ 1 + xk + year + xk:year
+dat3 <- dat2 %>% model.frame(formula=formula)
+
+
+ma.grma <- metaGLMM(formula, data=dat3, vi=dat2$vk, ni=dat2$tk, tau2=NA, 
+                family=poisson(link="log"), tau2_var=TRUE)
+summary(ma.grma)
+#> Maximum likelihood estimation
+#> 
+#> Call:
+#> bbmle::mle2(minuslogl = ll, start = c(beta_init, tau2 = 1), method = "L-BFGS-B", 
+#>     skip.hessian = FALSE, lower = lower, upper = upper, control = list(maxit = 20000))
+#> 
+#> Coefficients:
+#>              Estimate Std. Error z value    Pr(z)   
+#> (Intercept)  0.026855   0.516005  0.0520 0.958493   
+#> xk          -2.587412   0.953510 -2.7136 0.006656 **
+#> year         0.104032   0.077432  1.3435 0.179101   
+#> xk:year      0.059344   0.135814  0.4369 0.662149   
+#> tau2         0.381172   0.171376  2.2242 0.026136 * 
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> -2 log L: 424.5847
+```
+
+
+### Bubble plot of meta-analysis for GLMM
+
+```{r example2-3, eval=FALSE, fig.width=8, fig.height=6, fig.retina=2, out.width="80%", out.height="400px"}
+g1 <- ggplot(dat2, aes(x=year, y=thetak)) +
+  geom_point(aes(size=1/vk, fill=xk, shape=xk), color="black", alpha=0.7) +
+  scale_size_continuous(range = c(2,10)) +
+  scale_shape_manual(
+    name   = "Sex",
+    values = c("Female" = 21, "Male" = 22)
+  ) +
+  scale_fill_manual(
+    name = "Sex",
+    values = c("Female" = "pink", "Male" = "lightblue")
+  ) +
+  geom_abline(
+    slope=coef(ma.grma)[3], 
+    intercept=coef(ma.grma)[1], 
+    color="red", 
+    linewidth=1, linetype=1
+  ) +
+  geom_abline(
+    slope=coef(ma.grma)[3]+coef(ma.grma)[4], 
+    intercept=coef(ma.grma)[1]+coef(ma.grma)[2], 
+    color="blue", 
+    linewidth=1, linetype=1
+  ) +
+  guides(
+    size = guide_legend(
+      override.aes = list(
+        fill = "white",
+        color = "black",
+        shape = 21
+      )
+    )
+  ) +
+  coord_cartesian(xlim = c(0,9)) +
+  ylim(c(-4,3)) +
+  labs(x = "Year", y = "log IR", size = "1/Variance") +
+  theme(legend.position = "right")
+
+g1
+```
+
+
+```{r example2-3-2, echo=FALSE, fig.width=8, fig.height=6, fig.retina=2, out.width="80%", out.height="400px"}
+file <- if (knitr::is_latex_output()) {
+  "figures/rda-rutter2021.pdf"
+} else {
+  "figures/rda-rutter2021.png"
+}
+knitr::include_graphics(file)
+```
+
+
+
+```{r example2-4, eval=FALSE}
+### confidence interval by profile likelihood
+ci.pl <- confint_PL(ma.grma)
+ci.pl
+#>                  lower      upper
+#> (Intercept) -1.0570513  1.1062944
+#> xk          -4.6276377 -0.7489715
+#> year        -0.0576682  0.2655337
+#> xk:year     -0.2119976  0.3433750
+
+
+
+### confidence interval by profile likelihood with simple Bartlett correction
+ci.plsbc <- confint_SBC(ma.grma)
+ci.plsbc
+#>                   lower      upper
+#> (Intercept) -1.12468415  1.1735710
+#> xk          -4.75295689 -0.6445385
+#> year        -0.06780246  0.2756033
+#> xk:year     -0.22810411  0.3605470
+```
+
+
+
+## Example 3: Gamma distributed outcome
+
+### Data Preparation
+
+```{r example3, eval=FALSE}
+data(long2020, package="metaGLMM")
+
+# Transforming outcomes
+dat <- long2020 %>% mutate(
+  yi = log(mi),
+  vi = sdi^2 / mi^2
+)
+
+head(dat)
+#>     Study   mi sdi ni trt       yi         vi
+#> 1 Study 1  9.6 0.7 20   1 2.261763 0.00531684
+#> 2 Study 2  9.9 8.3 25   1 2.292535 0.70288746
+#> 3 Study 3 13.8 4.2 23   1 2.624669 0.09262760
+#> 4 Study 4 16.5 7.4 18   1 2.803360 0.20113866
+#> 5 Study 5  8.2 4.3 75   1 2.104134 0.27498513
+#> 6 Study 1 14.6 2.2 20   0 2.681022 0.02270595
+```
+
+
+
+### Apply meta-analysis for GLMM
+
+```{r example3-2, eval=FALSE}
+
+formula <- mi ~ 1 + trt
+dat2 <- dat %>% model.frame(formula=formula)
+
+
+ma.grma <- metaGLMM(formula, data=dat2, vi=dat$vi, ni=dat$ni, tau2=NA, 
+                family=Gamma(link = "log"), tau2_var=TRUE)
+summary(ma.grma)
+#> Maximum likelihood estimation
+#> 
+#> Call:
+#> bbmle::mle2(minuslogl = ll, start = c(beta_init, tau2 = 1), method = "L-BFGS-B", 
+#>     skip.hessian = FALSE, lower = lower, upper = upper, control = list(maxit = 20000))
+#> 
+#> Coefficients:
+#>             Estimate Std. Error z value   Pr(z)    
+#> (Intercept)  2.85140    0.11597 24.5874 < 2e-16 ***
+#> trt         -0.43137    0.15921 -2.7094 0.00674 ** 
+#> tau2         0.06796    0.03587  1.8946 0.05814 .  
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> -2 log L: 50226.91
+
+
+
+### confidence interval by profile likelihood
+ci.pl <- confint_PL(ma.grma, parm="trt")
+ci.pl
+#>         lower       upper
+#> trt -0.681928 -0.04249324
+
+
+
+### confidence interval by profile likelihood with simple Bartlett correction
+ci.plsbc <- confint_SBC(ma.grma, parm="trt")
+ci.plsbc
+#>          lower      upper
+#> trt -0.8958982 0.03439087
+```
+
