@@ -14,6 +14,8 @@
 #'@export confint_AN
 #'@export confint_PL
 #'@export confint_SBC
+#'@export profile_ll
+#'@export profile_ll_sbc
 #'
 #'@references none
 #'

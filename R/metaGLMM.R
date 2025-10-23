@@ -249,3 +249,110 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
 
   return(val)
 }
+#' profile likelihood function for metaGLMM object.
+#'
+#'@param value a vector of parameter values.
+#'@param object object of metaGLMM function.
+#'@param parm parameter name for profile likelihood function.
+#'
+#'@return a values of profile likelihood function.
+#'
+#'@export
+profile_ll <- function(value, object, parm){
+
+  vars <- names(coef(object))
+  var_name <- parm
+  init <- numeric(length(vars)-1)
+
+  mll <- function(var, init){
+
+    names(init) <- vars[vars!=var_name]
+    args_list <- as.list(init)
+    value <- c(var, args_list)
+    names(value)[1] <- var_name
+    do.call(object@minuslogl, value)
+
+  }
+
+
+  pl <- function(var, init){
+
+    if (length(init)==1) {
+
+      renge_tau2 <- renge.c*diag(vcov(object))["tau2"]*qnorm(1-(1-level)/2)
+      x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
+      tau2h <- x$minimum
+      return_val <- 2*(x$objective + logLik(object))
+
+    } else {
+
+      x <- optim(par=init, mll, var=var)
+      tau2h <- x$par[length(vars)-1]
+      return_val <- 2*(x$value + logLik(object))
+
+    }
+
+    return(return_val)
+
+  }
+
+
+  plvals <- sapply(value, pl, init=init)
+  return(plvals)
+}
+#' profile likelihood with simple Bartlett correction for metaGLMM object.
+#'
+#'@param value a vector of parameter values.
+#'@param object object of metaGLMM function.
+#'@param parm parameter name for profile likelihood function.
+#'
+#'@return a values of profile likelihood function.
+#'
+#'@export
+profile_ll_sbc <- function(value, object, parm){
+
+  vars <- names(coef(object))
+  var_name <- parm
+  init <- numeric(length(vars)-1)
+  vi <- environment(object)$vi
+
+  mll <- function(var, init){
+
+    names(init) <- vars[vars!=var_name]
+    args_list <- as.list(init)
+    value <- c(var, args_list)
+    names(value)[1] <- var_name
+    do.call(object@minuslogl, value)
+
+  }
+
+
+  plsbc <- function(var, init){
+
+    if (length(init)==1) {
+
+      renge_tau2 <- renge.c*diag(vcov(object))["tau2"]*qnorm(1-(1-level)/2)
+      x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
+      tau2h <- x$minimum
+      correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
+      return_val <- 2*(x$objective + logLik(object))/(1+2*correct)
+
+    } else {
+
+      x <- optim(par=init, mll, var=var)
+      tau2h <- x$par[length(vars)-1]
+      correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
+      return_val <- 2*(x$value + logLik(object))/(1+2*correct)
+
+    }
+
+    return(return_val)
+
+  }
+
+  plvals <- sapply(value, plsbc, init=init)
+  return(plvals)
+}
+
+
+
