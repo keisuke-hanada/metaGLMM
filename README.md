@@ -8,7 +8,8 @@ The metaGLMM package extends traditional random-effects meta-analysis by embeddi
 remotes::install_github("keisuke-hanada/metaGLMM", build_vignettes = TRUE)
 ```
 
-## example code
+
+# example code
 Please see our vignettes: <https://github.com/keisuke-hanada/metaGLMM/blob/main/vignettes/metaGLMM-examples.Rmd>.
 
 
