@@ -14,6 +14,8 @@ metaGLMM(
   tau2_var = TRUE,
   rstdnorm = qnorm((qrng::sobol(5000, d = 1, scrambling = 1) * (5000 - 1) + 0.5)/5000),
   skip.hessian = FALSE,
+  start_beta = NULL,
+  start_tau2 = NULL,
   ...
 )
 }
@@ -35,6 +37,10 @@ metaGLMM(
 \item{rstdnorm}{random numbers. The default is 5000 quasi-random values by Sobol' quasi-random sequences}
 
 \item{skip.hessian}{Bypass Hessian calculation?}
+
+\item{start_beta}{start values of beta.}
+
+\item{start_tau2}{start value of tau2.}
 }
 \value{
 object of meta-analysis under generalized linear mixed effects model

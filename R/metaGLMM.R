@@ -9,20 +9,41 @@
 #'@param tau2_var If TRUE (default), tau2 is estimated. If FALSE, assume tau2 is true value.
 #'@param rstdnorm random numbers. The default is 5000 quasi-random values by Sobol' quasi-random sequences
 #'@param skip.hessian Bypass Hessian calculation?
+#'@param start_beta start values of beta.
+#'@param start_tau2 start value of tau2.
 #'
 #'@return object of meta-analysis under generalized linear mixed effects model
 #'
 #'@export
 metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
                  rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
-                 skip.hessian = FALSE, ...){
+                 skip.hessian = FALSE,
+                 start_beta=NULL, start_tau2=NULL, ...){
 
   ## set initial value
   trm <- terms(formula, data = data)
   vars <- attr(trm, "term.labels")
   has_int <- attr(trm, "intercept") == 1
   if (has_int) vars <- c("(Intercept)", vars)
-  vals <- rnorm(length(vars)) - 2
+
+  ## initial beta
+  if (is.null(start_beta)) {
+    vals <- rnorm(length(vars)) - 2
+    names(vals) <- vars
+  } else {
+    # accept either named numeric vector or list
+    if (is.list(start_beta)) start_beta <- unlist(start_beta, use.names = TRUE)
+
+    if (is.null(names(start_beta))) {
+      stop("start_beta must be a *named* vector (or a named list).")
+    }
+    if (!all(vars %in% names(start_beta))) {
+      miss <- setdiff(vars, names(start_beta))
+      stop(paste0("start_beta is missing: ", paste(miss, collapse = ", ")))
+    }
+    vals <- as.numeric(start_beta[vars])
+    names(vals) <- vars
+  }
   beta_init <- as.list(vals)
   names(beta_init) <- vars
 
@@ -41,8 +62,10 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
     lower$tau2 <- 0
     upper$tau2 <- Inf
 
+    if (is.null(start_tau2)) start_tau2 <- 1
+    start_list <- c(beta_init, tau2 = start_tau2)
 
-    fit <- bbmle::mle2(ll, start=c(beta_init, tau2=1),
+    fit <- bbmle::mle2(ll, start=start_list,
                        skip.hessian=skip.hessian, method= "L-BFGS-B",
                 lower = lower, upper = upper,
                 control = list(maxit=2e4), ...)
