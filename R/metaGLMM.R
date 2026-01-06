@@ -8,12 +8,14 @@
 #'@param family a family objects for models.
 #'@param tau2_var If TRUE (default), tau2 is estimated. If FALSE, assume tau2 is true value.
 #'@param rstdnorm random numbers. The default is 5000 quasi-random values by Sobol' quasi-random sequences
+#'@param skip.hessian Bypass Hessian calculation?
 #'
 #'@return object of meta-analysis under generalized linear mixed effects model
 #'
 #'@export
 metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
-                 rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000)){
+                 rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
+                 skip.hessian = FALSE, ...){
 
   ## set initial value
   trm <- terms(formula, data = data)
@@ -26,7 +28,9 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
 
 
   ## define log likelihood
-  ll <- make_ll_fun(formula=formula, data=data, vi=vi, ni=ni, tau2=tau2, family=family, tau2_var=tau2_var, rstdnorm=rstdnorm)
+  ll <- make_ll_fun(formula=formula, data=data, vi=vi, ni=ni,
+                    tau2=tau2, family=family, tau2_var=tau2_var,
+                    rstdnorm=rstdnorm)
 
 
   ## maximum likelihood estimation
@@ -38,13 +42,15 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
     upper$tau2 <- Inf
 
 
-    fit <- bbmle::mle2(ll, start=c(beta_init, tau2=1), skip.hessian=FALSE, method= "L-BFGS-B",
+    fit <- bbmle::mle2(ll, start=c(beta_init, tau2=1),
+                       skip.hessian=skip.hessian, method= "L-BFGS-B",
                 lower = lower, upper = upper,
-                control = list(maxit=2e4))
+                control = list(maxit=2e4), ...)
 
   }else {
-    fit <- bbmle::mle2(ll, start=beta_init, skip.hessian=FALSE,
-                control = list(reltol=1e-12, maxit=2e4))
+    fit <- bbmle::mle2(ll, start=beta_init,
+                       skip.hessian=skip.hessian,
+                control = list(reltol=1e-12, maxit=2e4), ...)
   }
 
 
