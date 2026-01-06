@@ -9,6 +9,7 @@
 #'@import qrng
 #'
 #'@export likelihood
+#'@export make_ll_fun
 #'@export metaGLMM
 #'@export ci_metaGLMM
 #'@export confint_AN
