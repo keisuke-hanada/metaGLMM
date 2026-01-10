@@ -14,8 +14,10 @@
 #'
 #'@export
 likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="logit"),
-                       tau2.min=1e-6,
+                       tau2.min=1e-6, re_group=NULL,
                        rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000)) {
+
+  if (anyNA(re_group)) stop("re_group must not contain NA.")
 
   ## model
   yk <- model.response(data)
@@ -61,25 +63,37 @@ likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="
   total <- 0.0
   log_n_monte <- log(n.monte)
   rst_tau2 <- rstdnorm * sqrt(tau2)
-  for (j in seq_len(strata)) {
-    etaj   <- etak[j]
-    eta_mc <- etaj + rst_tau2
 
-    mu_mc  <- family$linkinv(eta_mc)
-    theta_mc <- clink(mu_mc)
+  if (is.null(re_group)) {
+    re_group <- seq_len(strata)
+  }
+  idx_list <- split(seq_len(strata), re_group)
 
-    b_mc   <- b(theta_mc)
+  for (g in idx_list) {
 
-    yj     <- yk[j]
-    nj     <- ni[j]
-    aj     <- a_phik[j]
-    factor <- nj / aj
+    ## accumulate arm/row contributions for each MC draw
+    z_mc_g <- numeric(n.monte)
 
-    z_mc   <- factor * ( yj * theta_mc - b_mc )
+    for (j in g) {
+      etaj   <- etak[j]
+      eta_mc <- etaj + rst_tau2
 
-    logsum <- logSumExp_simple(z_mc)
+      mu_mc    <- family$linkinv(eta_mc)
+      theta_mc <- clink(mu_mc)
+      b_mc     <- b(theta_mc)
+
+      yj     <- yk[j]
+      nj     <- ni[j]
+      aj     <- a_phik[j]
+      factor <- nj / aj
+
+      z_mc_g <- z_mc_g + factor * ( yj * theta_mc - b_mc )
+    }
+
+    logsum <- logSumExp_simple(z_mc_g)
     total <- total + ( - (logsum - log_n_monte) )
   }
+
 
   return(total)
 
@@ -146,9 +160,11 @@ make_ll_fun_old <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
 }
 
 make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
-                        tau2.min = 1e-6,
+                        tau2.min = 1e-6, re_group=NULL,
                         rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
                         ...) {
+
+  if (anyNA(re_group)) stop("re_group must not contain NA.")
 
   ## ---- cache model objects ONCE ----
   # data is assumed to be a model.frame OR a data.frame that can be used in model.frame
@@ -193,6 +209,16 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
   a_phik <- a_fun(vi)              # length strata
   factor <- ni / a_phik            # length strata
 
+
+  ## --- group indices fixed here (default: each row is its own group) ---
+  if (is.null(re_group)) {
+    re_group_use <- seq_len(strata)
+  } else {
+    re_group_use <- re_group
+  }
+  idx_list <- split(seq_len(strata), re_group_use)
+
+
   # local fast log-sum-exp
   logSumExp_simple_local <- function(x) {
     m <- max(x)
@@ -225,12 +251,15 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
       etak <- as.vector(.(X) %*% beta)
 
       total <- 0.0
-      for (j in seq_len(.(strata))) {
-        eta_mc <- etak[j] + rst_tau2
-        mu_mc  <- .(family)$linkinv(eta_mc)
-        theta_mc <- .(clink)(mu_mc)
-        z_mc <- .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
-        total <- total + ( - (.(logSumExp_simple_local)(z_mc) - .(log_n_monte)) )
+      for (g in .(idx_list)) {
+        z_mc_g <- numeric(.(n.monte))
+        for (j in g) {
+          eta_mc <- etak[j] + rst_tau2
+          mu_mc  <- .(family)$linkinv(eta_mc)
+          theta_mc <- .(clink)(mu_mc)
+          z_mc_g <- z_mc_g + .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
+        }
+        total <- total + ( - (.(logSumExp_simple_local)(z_mc_g) - .(log_n_monte)) )
       }
       total
     })
@@ -245,12 +274,15 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
       etak <- as.vector(.(X) %*% beta)
 
       total <- 0.0
-      for (j in seq_len(.(strata))) {
-        eta_mc <- etak[j] + rst_tau2
-        mu_mc  <- .(family)$linkinv(eta_mc)
-        theta_mc <- .(clink)(mu_mc)
-        z_mc <- .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
-        total <- total + ( - (.(logSumExp_simple_local)(z_mc) - .(log_n_monte)) )
+      for (g in .(idx_list)) {
+        z_mc_g <- numeric(.(n.monte))
+        for (j in g) {
+          eta_mc <- etak[j] + rst_tau2
+          mu_mc  <- .(family)$linkinv(eta_mc)
+          theta_mc <- .(clink)(mu_mc)
+          z_mc_g <- z_mc_g + .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
+        }
+        total <- total + ( - (.(logSumExp_simple_local)(z_mc_g) - .(log_n_monte)) )
       }
       total
     })

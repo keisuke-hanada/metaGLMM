@@ -15,7 +15,7 @@
 #'@return object of meta-analysis under generalized linear mixed effects model
 #'
 #'@export
-metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
+metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_group=NULL,
                  rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
                  skip.hessian = FALSE,
                  start_beta=NULL, start_tau2=NULL, ...){
@@ -51,7 +51,7 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE,
   ## define log likelihood
   ll <- make_ll_fun(formula=formula, data=data, vi=vi, ni=ni,
                     tau2=tau2, family=family, tau2_var=tau2_var,
-                    rstdnorm=rstdnorm)
+                    rstdnorm=rstdnorm, re_group=re_group)
 
 
   ## maximum likelihood estimation
