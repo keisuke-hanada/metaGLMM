@@ -75,8 +75,12 @@ likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="
     z_mc_g <- numeric(n.monte)
 
     for (j in g) {
-      etaj   <- etak[j]
-      eta_mc <- etaj + rst_tau2
+
+      if (j==g[1]) {
+        eta_mc <- etak[j] + rst_tau2
+      } else {
+        eta_mc <- etak[j]
+      }
 
       mu_mc    <- family$linkinv(eta_mc)
       theta_mc <- clink(mu_mc)
@@ -277,7 +281,13 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
       for (g in .(idx_list)) {
         z_mc_g <- numeric(.(n.monte))
         for (j in g) {
-          eta_mc <- etak[j] + rst_tau2
+
+          if (j==g[1]) {
+            eta_mc <- etak[j] + rst_tau2
+          } else {
+            eta_mc <- etak[j]
+          }
+
           mu_mc  <- .(family)$linkinv(eta_mc)
           theta_mc <- .(clink)(mu_mc)
           z_mc_g <- z_mc_g + .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )

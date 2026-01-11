@@ -3,6 +3,7 @@
 \docType{package}
 \name{metaGLMM-package}
 \alias{metaGLMM-package}
+\alias{_PACKAGE}
 \alias{metaGLMM}
 \title{metaGLMM}
 \description{
