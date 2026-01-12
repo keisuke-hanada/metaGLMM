@@ -14,6 +14,7 @@ likelihood(
   family = binomial(link = "logit"),
   tau2.min = 1e-06,
   re_group = NULL,
+  trt = NULL,
   rstdnorm = qnorm((qrng::sobol(5000, d = 1, scrambling = 1) * (5000 - 1) + 0.5)/5000)
 )
 }

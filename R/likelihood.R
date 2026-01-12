@@ -14,10 +14,25 @@
 #'
 #'@export
 likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="logit"),
-                       tau2.min=1e-6, re_group=NULL,
+                       tau2.min=1e-6, re_group=NULL, trt=NULL,
                        rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000)) {
 
   if (anyNA(re_group)) stop("re_group must not contain NA.")
+
+  use_random_slope <- !is.null(re_group)
+  if (use_random_slope) {
+    if (is.null(trt)) stop("re_group is specified, so trt must be provided (0/1).")
+    if (!(trt %in% names(mf))) stop("trt was not found in data/model.frame.")
+    Z <- data[[trt]]
+    if (is.logical(Z)) Z <- as.numeric(Z)
+    if (is.factor(Z)) {
+      if (nlevels(Z) != 2L) stop("trt factor must have 2 levels.")
+      Z <- as.numeric(Z == levels(Z)[2L])
+    }
+    if (anyNA(Z) || !all(Z %in% c(0,1))) stop("trt must be coded as 0/1 (or logical / 2-level factor).")
+  } else {
+    Z <- rep.int(1, nrow(mf))
+  }
 
   ## model
   yk <- model.response(data)
@@ -76,10 +91,10 @@ likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="
 
     for (j in g) {
 
-      if (j==g[1]) {
-        eta_mc <- etak[j] + rst_tau2
+      if (.(use_random_slope)) {
+        eta_mc <- etak[j] + rst_tau2 * .(Z)[j]
       } else {
-        eta_mc <- etak[j]
+        eta_mc <- etak[j] + rst_tau2
       }
 
       mu_mc    <- family$linkinv(eta_mc)
@@ -112,59 +127,8 @@ logSumExp_simple <- function(x) {
 
 
 
-make_ll_fun_old <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
-                        rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000), ...) {
-  trm <- terms(formula, data = data)
-  vars <- attr(trm, "term.labels")
-  has_int <- attr(trm, "intercept") == 1
-  if (has_int) vars <- c("(Intercept)", vars)
-  if (tau2_var) vars <- c(vars, "tau2")
-  K <- length(vars)
-
-  arg_list <- vector("list", K)
-  # names(arg_list) <- paste0("b", seq_len(K))
-  names(arg_list) <- vars
-
-  ll <- function() NULL
-  formals(ll) <- arg_list
-
-  if (tau2_var) {
-
-    beta_call <- as.call(c(as.name("c"),
-                           lapply(names(arg_list[-K]), as.name)))
-    tau2_call <- as.name("tau2")
-
-    body(ll) <- bquote({
-      beta <- .(beta_call)
-
-      likelihood(formula=.(formula), data=.(data), vi=.(vi), ni=.(ni),
-                 beta=.(beta_call), tau2=.(tau2_call), family=.(family),
-                 rstdnorm=.(rstdnorm))
-    })
-
-
-  }else {
-
-    beta_call <- as.call(c(as.name("c"),
-                           lapply(names(arg_list), as.name)))
-
-    body(ll) <- bquote({
-      beta <- .(beta_call)
-
-      likelihood(formula=.(formula), data=.(data), vi=.(vi), ni=.(ni),
-                 beta=.(beta_call), tau2=.(tau2), family=.(family),
-                 rstdnorm=.(rstdnorm))
-    })
-
-  }
-
-
-
-  return(ll)
-}
-
 make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
-                        tau2.min = 1e-6, re_group=NULL,
+                        tau2.min = 1e-6, re_group=NULL, trt=NULL,
                         rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
                         ...) {
 
@@ -179,6 +143,22 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
   # If data is not a model.frame, build it once here
   # (If data is already a model.frame, this is cheap and consistent.)
   mf <- model.frame(formula, data)
+
+
+  use_random_slope <- !is.null(re_group)
+  if (use_random_slope) {
+    if (is.null(trt)) stop("re_group is specified, so trt must be provided (0/1).")
+    if (!(trt %in% names(mf))) stop("trt was not found in data/model.frame.")
+    Z <- mf[[trt]]
+    if (is.logical(Z)) Z <- as.numeric(Z)
+    if (is.factor(Z)) {
+      if (nlevels(Z) != 2L) stop("trt factor must have 2 levels.")
+      Z <- as.numeric(Z == levels(Z)[2L])
+    }
+    if (anyNA(Z) || !all(Z %in% c(0,1))) stop("trt must be coded as 0/1 (or logical / 2-level factor).")
+  } else {
+    Z <- rep.int(1, nrow(mf))
+  }
 
   yk <- model.response(mf)
   X  <- model.matrix(formula, mf)
@@ -258,7 +238,13 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
       for (g in .(idx_list)) {
         z_mc_g <- numeric(.(n.monte))
         for (j in g) {
-          eta_mc <- etak[j] + rst_tau2
+
+          if (.(use_random_slope)) {
+            eta_mc <- etak[j] + rst_tau2 * .(Z)[j]
+          } else {
+            eta_mc <- etak[j] + rst_tau2
+          }
+
           mu_mc  <- .(family)$linkinv(eta_mc)
           theta_mc <- .(clink)(mu_mc)
           z_mc_g <- z_mc_g + .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
@@ -282,10 +268,10 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
         z_mc_g <- numeric(.(n.monte))
         for (j in g) {
 
-          if (j==g[1]) {
-            eta_mc <- etak[j] + rst_tau2
+          if (.(use_random_slope)) {
+            eta_mc <- etak[j] + rst_tau2 * .(Z)[j]
           } else {
-            eta_mc <- etak[j]
+            eta_mc <- etak[j] + rst_tau2
           }
 
           mu_mc  <- .(family)$linkinv(eta_mc)
