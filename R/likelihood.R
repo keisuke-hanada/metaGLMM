@@ -22,7 +22,7 @@ likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="
   use_random_slope <- !is.null(re_group)
   if (use_random_slope) {
     if (is.null(trt)) stop("re_group is specified, so trt must be provided (0/1).")
-    if (!(trt %in% names(mf))) stop("trt was not found in data/model.frame.")
+    if (!(trt %in% names(data))) stop("trt was not found in data/model.frame.")
     Z <- data[[trt]]
     if (is.logical(Z)) Z <- as.numeric(Z)
     if (is.factor(Z)) {
@@ -91,8 +91,8 @@ likelihood <- function(formula, data, vi, ni, beta, tau2, family=binomial(link="
 
     for (j in g) {
 
-      if (.(use_random_slope)) {
-        eta_mc <- etak[j] + rst_tau2 * .(Z)[j]
+      if (use_random_slope) {
+        eta_mc <- etak[j] + rst_tau2 * Z[j]
       } else {
         eta_mc <- etak[j] + rst_tau2
       }
@@ -247,6 +247,7 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
 
           mu_mc  <- .(family)$linkinv(eta_mc)
           theta_mc <- .(clink)(mu_mc)
+
           z_mc_g <- z_mc_g + .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
         }
         total <- total + ( - (.(logSumExp_simple_local)(z_mc_g) - .(log_n_monte)) )

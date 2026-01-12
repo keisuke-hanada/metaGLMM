@@ -13,6 +13,7 @@ metaGLMM(
   family,
   tau2_var = TRUE,
   re_group = NULL,
+  trt = NULL,
   rstdnorm = qnorm((qrng::sobol(5000, d = 1, scrambling = 1) * (5000 - 1) + 0.5)/5000),
   skip.hessian = FALSE,
   start_beta = NULL,
