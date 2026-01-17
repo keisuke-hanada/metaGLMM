@@ -235,7 +235,10 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
       etak <- as.vector(.(X) %*% beta)
 
       total <- 0.0
+      ll_vec <- numeric(length(.(idx_list)))
+      g_id <- 0L
       for (g in .(idx_list)) {
+        g_id <- g_id + 1L
         z_mc_g <- numeric(.(n.monte))
         for (j in g) {
 
@@ -250,8 +253,11 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
 
           z_mc_g <- z_mc_g + .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
         }
-        total <- total + ( - (.(logSumExp_simple_local)(z_mc_g) - .(log_n_monte)) )
+        ll_g <- ( - (.(logSumExp_simple_local)(z_mc_g) - .(log_n_monte)) )
+        ll_vec[g_id] <- ll_g
+        total <- total + ll_g
       }
+      attr(total, "ll_vec") <- ll_vec
       total
     })
   } else {
@@ -265,7 +271,10 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
       etak <- as.vector(.(X) %*% beta)
 
       total <- 0.0
+      ll_vec <- numeric(length(.(idx_list)))
+      g_id <- 0L
       for (g in .(idx_list)) {
+        g_id <- g_id + 1L
         z_mc_g <- numeric(.(n.monte))
         for (j in g) {
 
@@ -279,7 +288,9 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
           theta_mc <- .(clink)(mu_mc)
           z_mc_g <- z_mc_g + .(factor)[j] * ( .(yk)[j] * theta_mc - .(b_fun)(theta_mc) )
         }
-        total <- total + ( - (.(logSumExp_simple_local)(z_mc_g) - .(log_n_monte)) )
+        ll_g <- ( - (.(logSumExp_simple_local)(z_mc_g) - .(log_n_monte)) )
+        ll_vec[g_id] <- ll_g
+        total <- total + ll_g
       }
       total
     })

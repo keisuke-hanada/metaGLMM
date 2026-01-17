@@ -2,6 +2,7 @@
 
 export(ci_metaGLMM)
 export(confint_AN)
+export(confint_GSBC)
 export(confint_PL)
 export(confint_SBC)
 export(likelihood)
