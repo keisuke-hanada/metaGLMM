@@ -315,15 +315,17 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
 #' - A compiled Rcpp function `mc_nll_groups()` must be available in the namespace.
 #'   (e.g., placed under src/ and exported via Rcpp attributes, or sourceCpp-ed once.)
 #'
-make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
-                             tau2.min = 1e-6, re_group=NULL, trt=NULL,
+make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var = FALSE,
+                             tau2.min = 1e-6, re_group = NULL, trt = NULL,
                              ghq_Q = 30L,
                              ...) {
 
   if (anyNA(re_group)) stop("re_group must not contain NA.")
   if (!inherits(data, "data.frame")) stop("data must be a data.frame or model.frame.")
+
   mf <- model.frame(formula, data)
 
+  ## --- random slope coding (Z) ---
   use_random_slope <- !is.null(re_group)
   if (use_random_slope) {
     if (is.null(trt)) stop("re_group is specified, so trt must be provided (0/1).")
@@ -334,7 +336,9 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE
       if (nlevels(Z0) != 2L) stop("trt factor must have 2 levels.")
       Z0 <- as.numeric(Z0 == levels(Z0)[2L])
     }
-    if (anyNA(Z0) || !all(Z0 %in% c(0,1))) stop("trt must be coded as 0/1 (or logical / 2-level factor).")
+    if (anyNA(Z0) || !all(Z0 %in% c(0, 1))) {
+      stop("trt must be coded as 0/1 (or logical / 2-level factor).")
+    }
   } else {
     Z0 <- rep.int(1, nrow(mf))
   }
@@ -343,21 +347,17 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE
   X0  <- model.matrix(formula, mf)
   strata <- length(yk0)
 
-  # group id
+  ## --- group id ---
   if (is.null(re_group)) re_group_use <- seq_len(strata) else re_group_use <- re_group
 
-  # ----- fastGHQuad rule (physicists) -----
-  if (!requireNamespace("fastGHQuad", quietly = TRUE)) {
-    stop("fastGHQuad is required for fast=TRUE GHQ. Please install fastGHQuad.")
-  }
-  rule <- fastGHQuad::gaussHermiteData(as.integer(ghq_Q))
-  ghq_x <- as.numeric(rule$x)
-  ghq_w <- as.numeric(rule$w)
-
-  # ---- a_fun (canonical part is as you said: keep as is) ----
-  fam_name <- family$family
+  ## --- family / link ---
+  fam_name  <- family$family
   link_name <- family$link
 
+  ## closed-form only for Gaussian(identity)
+  use_closed_form_gaussian <- identical(fam_name, "gaussian") && identical(link_name, "identity")
+
+  ## ---- a_fun / family_id (canonical part fixed as you said) ----
   if (fam_name == "gaussian") {
     a_fun <- function(v) v
     family_id <- 4L
@@ -374,31 +374,44 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE
     stop("Unsupported family: ", fam_name)
   }
 
-  a_phik <- a_fun(vi)
+  a_phik  <- a_fun(vi)
   factor0 <- ni / a_phik
 
-  # ----- link_id mapping (make.link list) -----
+  ## ----- link_id mapping (make.link list) -----
   link_map <- c(
     "logit"="1","probit"="2","cauchit"="3","cloglog"="4","identity"="5",
     "log"="6","sqrt"="7","1/mu^2"="8","inverse"="9"
   )
   link_id <- if (!is.null(link_map[[link_name]])) as.integer(link_map[[link_name]]) else 0L
 
-  # ----- reorder rows by group to build gptr -----
-  ord <- order(re_group_use)  # stable enough; if you want stable within-group, use order(re_group_use, seq_along(re_group_use))
+  ## ----- reorder rows by group to build gptr -----
+  ord <- order(re_group_use, seq_along(re_group_use))  # stable within-group
   re_sorted <- re_group_use[ord]
-  yk <- as.numeric(yk0[ord])
-  Z  <- as.numeric(Z0[ord])
+  yk     <- as.numeric(yk0[ord])
+  Z      <- as.numeric(Z0[ord])
   factor <- as.numeric(factor0[ord])
-  X  <- X0[ord, , drop=FALSE]
+  X      <- X0[ord, , drop = FALSE]
 
-  # group boundaries -> gptr (0-based indices)
   rle_g <- rle(re_sorted)
-  lens <- rle_g$lengths
-  gptr <- c(0L, cumsum(lens))
-  gptr <- as.integer(gptr)
+  lens  <- rle_g$lengths
+  gptr  <- as.integer(c(0L, cumsum(lens)))  # 0-based boundaries
 
-  # ---- create ll with explicit formals for mle2 ----
+  ## --- GHQ nodes/weights (only if needed) ---
+  if (!use_closed_form_gaussian) {
+    if (!requireNamespace("fastGHQuad", quietly = TRUE)) {
+      stop("fastGHQuad is required for fast=TRUE GHQ. Please install fastGHQuad.")
+    }
+    rule  <- fastGHQuad::gaussHermiteData(as.integer(ghq_Q))
+    ghq_x <- as.numeric(rule$x)
+    ghq_w <- as.numeric(rule$w)
+  } else {
+    ghq_x <- ghq_w <- NULL
+  }
+
+  ## --- linkinv callback (only used if link_id==0 in C++) ---
+  linkinv_fun <- family$linkinv
+
+  ## ---- create ll with explicit formals for mle2 ----
   trm <- terms(formula, data = mf)
   vars <- attr(trm, "term.labels")
   has_int <- attr(trm, "intercept") == 1
@@ -411,58 +424,139 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE
   ll <- function() NULL
   formals(ll) <- arg_list
 
-  # linkinv callback (only used if link_id==0)
-  linkinv_fun <- family$linkinv
+  ## ---- helpers (R-side closed-form uses pi, log) ----
+  # (keep as constants in the closure)
+  pi_const <- base::pi
 
   if (tau2_var) {
     beta_call <- as.call(c(as.name("c"), lapply(vars[-K], as.name)))
+
     body(ll) <- bquote({
       beta <- .(beta_call)
       tau2_use <- max(tau2, .(tau2.min))
       etak <- as.vector(.(X) %*% beta)
 
-      out <- ghq_nll_groups_fast(
-        etak   = etak,
-        y      = .(yk),
-        factor = .(factor),
-        Z      = .(Z),
-        gptr   = .(gptr),
-        tau2   = tau2_use,
-        family_id = .(family_id),
-        link_id   = .(link_id),
-        ghq_x  = .(ghq_x),
-        ghq_w  = .(ghq_w),
-        linkinv_fun = .(linkinv_fun)
-      )
+      if (.(use_closed_form_gaussian)) {
+        total <- 0.0
+        G <- length(.(gptr)) - 1L
+        ll_vec <- numeric(G)
 
-      total <- out$nll_total
-      attr(total, "ll_vec") <- out$nll_group
-      total
+        for (g in seq_len(G)) {
+          a <- .(gptr)[g] + 1L
+          b <- .(gptr)[g + 1L]
+          idx <- a:b
+
+          fj <- .(factor)[idx]
+          yj <- .(yk)[idx]
+          et <- etak[idx]
+          zj <- .(Z)[idx]
+
+          # C0 + B0*v + A0*v^2 with prior N(0,tau2)
+          C0 <- sum(fj * (yj * et - 0.5 * et * et))
+          B0 <- sum(fj * zj * (yj - et))
+          A0 <- -0.5 * sum(fj * zj * zj)
+
+          A  <- A0 - 0.5 / tau2_use  # A < 0
+
+          logLg <- C0 - (B0 * B0) / (4 * A) +
+            0.5 * log(.(pi_const) / (-A)) -
+            0.5 * log(2 * .(pi_const) * tau2_use)
+
+          ll_g <- -logLg
+          ll_vec[g] <- ll_g
+          total <- total + ll_g
+        }
+
+        attr(total, "ll_vec") <- ll_vec
+        total
+
+      } else {
+
+        if (!exists("ghq_nll_groups_fast", mode = "function")) {
+          stop("ghq_nll_groups_fast() was not found. Compile and load src/ghq_integral.cpp first.")
+        }
+
+        out <- ghq_nll_groups_fast(
+          etak        = etak,
+          y           = .(yk),
+          factor      = .(factor),
+          Z           = .(Z),
+          gptr        = .(gptr),
+          tau2        = tau2_use,
+          family_id   = .(family_id),
+          link_id     = .(link_id),
+          ghq_x       = .(ghq_x),
+          ghq_w       = .(ghq_w),
+          linkinv_fun = .(linkinv_fun)
+        )
+
+        total <- out$nll_total
+        attr(total, "ll_vec") <- out$nll_group
+        total
+      }
     })
+
   } else {
+
     beta_call <- as.call(c(as.name("c"), lapply(vars, as.name)))
+
     body(ll) <- bquote({
       beta <- .(beta_call)
       tau2_use <- max(.(tau2), .(tau2.min))
       etak <- as.vector(.(X) %*% beta)
 
-      out <- ghq_nll_groups_fast(
-        etak   = etak,
-        y      = .(yk),
-        factor = .(factor),
-        Z      = .(Z),
-        gptr   = .(gptr),
-        tau2   = tau2_use,
-        family_id = .(family_id),
-        link_id   = .(link_id),
-        ghq_x  = .(ghq_x),
-        ghq_w  = .(ghq_w),
-        linkinv_fun = .(linkinv_fun)
-      )
-      out$nll_total
+      if (.(use_closed_form_gaussian)) {
+        total <- 0.0
+        G <- length(.(gptr)) - 1L
+
+        for (g in seq_len(G)) {
+          a <- .(gptr)[g] + 1L
+          b <- .(gptr)[g + 1L]
+          idx <- a:b
+
+          fj <- .(factor)[idx]
+          yj <- .(yk)[idx]
+          et <- etak[idx]
+          zj <- .(Z)[idx]
+
+          C0 <- sum(fj * (yj * et - 0.5 * et * et))
+          B0 <- sum(fj * zj * (yj - et))
+          A0 <- -0.5 * sum(fj * zj * zj)
+          A  <- A0 - 0.5 / tau2_use
+
+          logLg <- C0 - (B0 * B0) / (4 * A) +
+            0.5 * log(.(pi_const) / (-A)) -
+            0.5 * log(2 * .(pi_const) * tau2_use)
+
+          total <- total + (-logLg)
+        }
+        total
+
+      } else {
+
+        if (!exists("ghq_nll_groups_fast", mode = "function")) {
+          stop("ghq_nll_groups_fast() was not found. Compile and load src/ghq_integral.cpp first.")
+        }
+
+        out <- ghq_nll_groups_fast(
+          etak        = etak,
+          y           = .(yk),
+          factor      = .(factor),
+          Z           = .(Z),
+          gptr        = .(gptr),
+          tau2        = tau2_use,
+          family_id   = .(family_id),
+          link_id     = .(link_id),
+          ghq_x       = .(ghq_x),
+          ghq_w       = .(ghq_w),
+          linkinv_fun = .(linkinv_fun)
+        )
+        out$nll_total
+      }
     })
   }
 
   ll
 }
+
 

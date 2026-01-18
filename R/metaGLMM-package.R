@@ -8,10 +8,12 @@
 #'
 #'@import bbmle
 #'@import qrng
+#'@import fastGHQuad
 #'@importFrom Rcpp evalCpp
 #'
 #'@export likelihood
 #'@export make_ll_fun
+#'@export make_ll_fun.fast
 #'@export metaGLMM
 #'@export ci_metaGLMM
 #'@export confint_AN
