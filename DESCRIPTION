@@ -15,7 +15,8 @@ Depends:
   bbmle
 Imports:
   qrng,
-  Rcpp
+  Rcpp,
+  fastGHQuad
 LinkingTo: Rcpp
 LazyData: true
 Suggests: 

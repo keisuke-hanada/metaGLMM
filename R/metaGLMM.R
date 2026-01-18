@@ -17,7 +17,7 @@
 #'@export
 metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_group=NULL, trt=NULL,
                  rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
-                 skip.hessian = FALSE, fast=FALSE,
+                 skip.hessian = FALSE, fast=FALSE, ghq_Q = 30L,
                  start_beta=NULL, start_tau2=NULL, ...){
 
   ## set initial value
@@ -57,7 +57,7 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_grou
   } else {
     ll <- make_ll_fun(formula=formula, data=data, vi=vi, ni=ni,
                       tau2=tau2, family=family, tau2_var=tau2_var,
-                      rstdnorm=rstdnorm, re_group=re_group, trt=trt)
+                      rstdnorm=rstdnorm, re_group=re_group, trt=trt, ghq_Q = ghq_Q)
   }
 
 

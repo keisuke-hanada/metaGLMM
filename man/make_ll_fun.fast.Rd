@@ -16,6 +16,7 @@ make_ll_fun.fast(
   tau2.min = 1e-06,
   re_group = NULL,
   trt = NULL,
+  ghq_Q = 30L,
   ...
 )
 }

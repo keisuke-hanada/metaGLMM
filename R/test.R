@@ -8,7 +8,7 @@
 #
 # set.seed(1234)
 #
-# n <- 10
+# n <- 30
 # nk <- numeric(n) + 30
 # zk <- rnorm(n)
 # beta <- c(1,0)
@@ -71,7 +71,7 @@
 #
 # set.seed(1234)
 #
-# n <- 100
+# n <- 10
 # nk <- numeric(n) + 30
 # zk <- rnorm(n)
 # beta <- c(-2,0.5)
@@ -96,10 +96,10 @@
 #                     family=binomial(link="logit"), tau2_var=TRUE)
 # summary(ma.grma)
 #
-# system.time(
-#   ci.pl <- confint_PL(ma.grma, parm="zk")
-# )
-# ci.pl
+# # system.time(
+# #   ci.pl <- confint_PL(ma.grma, parm="zk")
+# # )
+# # ci.pl
 #
 #
 #

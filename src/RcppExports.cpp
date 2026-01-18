@@ -10,22 +10,24 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// ghq_nll_groups
-Rcpp::List ghq_nll_groups(const NumericVector& etak, const NumericVector& y, const NumericVector& factor, const IntegerVector& gid, const NumericVector& Z, const double tau2, const int family_id, const int link_id, Rcpp::Function linkinv_fun);
-RcppExport SEXP _metaGLMM_ghq_nll_groups(SEXP etakSEXP, SEXP ySEXP, SEXP factorSEXP, SEXP gidSEXP, SEXP ZSEXP, SEXP tau2SEXP, SEXP family_idSEXP, SEXP link_idSEXP, SEXP linkinv_funSEXP) {
+// ghq_nll_groups_fast
+Rcpp::List ghq_nll_groups_fast(const NumericVector& etak, const NumericVector& y, const NumericVector& factor, const NumericVector& Z, const IntegerVector& gptr, const double tau2, const int family_id, const int link_id, const NumericVector& ghq_x, const NumericVector& ghq_w, Rcpp::Function linkinv_fun);
+RcppExport SEXP _metaGLMM_ghq_nll_groups_fast(SEXP etakSEXP, SEXP ySEXP, SEXP factorSEXP, SEXP ZSEXP, SEXP gptrSEXP, SEXP tau2SEXP, SEXP family_idSEXP, SEXP link_idSEXP, SEXP ghq_xSEXP, SEXP ghq_wSEXP, SEXP linkinv_funSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const NumericVector& >::type etak(etakSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type y(ySEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type factor(factorSEXP);
-    Rcpp::traits::input_parameter< const IntegerVector& >::type gid(gidSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type gptr(gptrSEXP);
     Rcpp::traits::input_parameter< const double >::type tau2(tau2SEXP);
     Rcpp::traits::input_parameter< const int >::type family_id(family_idSEXP);
     Rcpp::traits::input_parameter< const int >::type link_id(link_idSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type ghq_x(ghq_xSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type ghq_w(ghq_wSEXP);
     Rcpp::traits::input_parameter< Rcpp::Function >::type linkinv_fun(linkinv_funSEXP);
-    rcpp_result_gen = Rcpp::wrap(ghq_nll_groups(etak, y, factor, gid, Z, tau2, family_id, link_id, linkinv_fun));
+    rcpp_result_gen = Rcpp::wrap(ghq_nll_groups_fast(etak, y, factor, Z, gptr, tau2, family_id, link_id, ghq_x, ghq_w, linkinv_fun));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -51,7 +53,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_metaGLMM_ghq_nll_groups", (DL_FUNC) &_metaGLMM_ghq_nll_groups, 9},
+    {"_metaGLMM_ghq_nll_groups_fast", (DL_FUNC) &_metaGLMM_ghq_nll_groups_fast, 11},
     {"_metaGLMM_mc_nll_groups", (DL_FUNC) &_metaGLMM_mc_nll_groups, 10},
     {NULL, NULL, 0}
 };
