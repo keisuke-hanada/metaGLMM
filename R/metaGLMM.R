@@ -17,7 +17,7 @@
 #'@export
 metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_group=NULL, trt=NULL,
                  rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
-                 skip.hessian = FALSE,
+                 skip.hessian = FALSE, fast=FALSE,
                  start_beta=NULL, start_tau2=NULL, ...){
 
   ## set initial value
@@ -49,9 +49,16 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_grou
 
 
   ## define log likelihood
-  ll <- make_ll_fun(formula=formula, data=data, vi=vi, ni=ni,
-                    tau2=tau2, family=family, tau2_var=tau2_var,
-                    rstdnorm=rstdnorm, re_group=re_group, trt=trt)
+  if (fast) {
+    ll <- make_ll_fun.fast(formula=formula, data=data, vi=vi, ni=ni,
+                      tau2=tau2, family=family, tau2_var=tau2_var,
+                      rstdnorm=rstdnorm, re_group=re_group, trt=trt)
+
+  } else {
+    ll <- make_ll_fun(formula=formula, data=data, vi=vi, ni=ni,
+                      tau2=tau2, family=family, tau2_var=tau2_var,
+                      rstdnorm=rstdnorm, re_group=re_group, trt=trt)
+  }
 
 
   ## maximum likelihood estimation
@@ -545,4 +552,63 @@ calc_r_tau2 <- function(var, init, tau2h, mll, tau2.min = 1e-6,
 
   r
 }
+
+
+confint_PL_count <- function(object, parm=names(coef(object))[-length(coef(object))],
+                             level=0.95, renge.c=30){
+
+  vars <- names(coef(object))
+  lower <- upper <- numeric(length(parm))
+  names(lower) <- names(upper) <- parm
+
+  crit <- qchisq(level, df=1)
+
+  for(i in seq_along(parm)){
+
+    var_name <- parm[i]
+    init <- numeric(length(vars)-1)
+
+    ctr_pl  <- 0L
+    ctr_mll <- 0L
+
+    mll <- function(var, init){
+      ctr_mll <<- ctr_mll + 1L
+      names(init) <- vars[vars!=var_name]
+      args_list <- as.list(init)
+      value <- c(var, args_list)
+      names(value)[1] <- var_name
+      do.call(object@minuslogl, value)
+    }
+
+    pl <- function(var, init){
+      ctr_pl <<- ctr_pl + 1L
+
+      if (length(init)==1) {
+        se_tau2 <- sqrt(diag(vcov(object))["tau2"])
+        tau2hat <- unname(coef(object)["tau2"])
+        renge_tau2 <- renge.c*se_tau2*qnorm(1-(1-level)/2)
+        x <- optimize(mll, var=var, interval=c(max(0, tau2hat-renge_tau2), tau2hat+renge_tau2), init=init)
+        return( 2*(x$objective + logLik(object)) - crit )
+      } else {
+        x <- optim(par=init, fn=function(p) mll(var, p), method="Nelder-Mead")
+        return( 2*(x$value + logLik(object)) - crit )
+      }
+    }
+
+    renge <- renge.c*sqrt(diag(vcov(object))[var_name])*qnorm(1-(1-level)/2)
+    mid <- unname(coef(object)[var_name])
+
+    cil <- try(uniroot(pl, init=init, interval=c(mid-renge, mid))$root, silent=TRUE)
+    lower[i] <- if (inherits(cil,"try-error")) NA_real_ else cil
+
+    ciu <- try(uniroot(pl, init=init, interval=c(mid, mid+renge))$root, silent=TRUE)
+    upper[i] <- if (inherits(ciu,"try-error")) NA_real_ else ciu
+
+    message(sprintf("[%s] pl calls=%d, mll calls=%d", var_name, ctr_pl, ctr_mll))
+  }
+
+  cbind(lower, upper)
+}
+
+
 

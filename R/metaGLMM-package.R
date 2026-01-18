@@ -4,9 +4,11 @@
 #'
 #'@name metaGLMM-package
 #'@aliases metaGLMM
+#'@useDynLib metaGLMM, .registration = TRUE
 #'
 #'@import bbmle
 #'@import qrng
+#'@importFrom Rcpp evalCpp
 #'
 #'@export likelihood
 #'@export make_ll_fun

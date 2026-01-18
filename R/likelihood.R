@@ -300,3 +300,155 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
 }
 
 
+
+#' Fast version of make_ll_fun: MC/QMC integration and log-mean-exp in Rcpp,
+#' while link function / clink / b_fun remain in R (works for non-canonical links).
+#'
+#' Requirements:
+#' - Rcpp must be installed.
+#' - This function compiles a small C++ routine once per R session (cached in .GlobalEnv).
+#'
+#' Fast log-likelihood builder: closed-form for Gaussian(identity),
+#' otherwise call a compiled Rcpp core (mc_nll_groups) that supports flexible linkinv.
+#'
+#' Prerequisite:
+#' - A compiled Rcpp function `mc_nll_groups()` must be available in the namespace.
+#'   (e.g., placed under src/ and exported via Rcpp attributes, or sourceCpp-ed once.)
+#'
+make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
+                             tau2.min = 1e-6, re_group=NULL, trt=NULL,
+                             ...) {
+
+  if (anyNA(re_group)) stop("re_group must not contain NA.")
+  if (!inherits(data, "data.frame")) stop("data must be a data.frame or model.frame.")
+  if (!exists("ghq_nll_groups", mode = "function")) {
+    stop("ghq_nll_groups() was not found. Compile and load src/ghq_integral.cpp first (sourceCpp or package build).")
+  }
+
+  mf <- model.frame(formula, data)
+
+  use_random_slope <- !is.null(re_group)
+  if (use_random_slope) {
+    if (is.null(trt)) stop("re_group is specified, so trt must be provided (0/1).")
+    if (!(trt %in% names(mf))) stop("trt was not found in data/model.frame.")
+    Z <- mf[[trt]]
+    if (is.logical(Z)) Z <- as.numeric(Z)
+    if (is.factor(Z)) {
+      if (nlevels(Z) != 2L) stop("trt factor must have 2 levels.")
+      Z <- as.numeric(Z == levels(Z)[2L])
+    }
+    if (anyNA(Z) || !all(Z %in% c(0,1))) stop("trt must be coded as 0/1 (or logical / 2-level factor).")
+  } else {
+    Z <- rep.int(1, nrow(mf))
+  }
+
+  yk <- model.response(mf)
+  X  <- model.matrix(formula, mf)
+  strata <- length(yk)
+
+  # --- group id (0-based integer for C++) ---
+  if (is.null(re_group)) re_group_use <- seq_len(strata) else re_group_use <- re_group
+  # map to consecutive 0:(G-1)
+  f <- as.integer(factor(re_group_use))
+  gid0 <- f - 1L
+
+  # --- factor = n / a(phi) (same logic as original) ---
+  fam_name  <- family$family
+  link_name <- family$link
+
+  if (fam_name == "gaussian") {
+    a_fun <- function(v) v
+  } else if (fam_name %in% c("binomial", "poisson")) {
+    a_fun <- function(v) rep.int(1, strata)
+  } else if (fam_name == "Gamma") {
+    a_fun <- function(v) v
+  } else {
+    stop("Unsupported family: ", fam_name)
+  }
+  a_phik <- a_fun(vi)
+  factor_vec <- ni / a_phik
+
+  # --- family_id for C++ canonical clink/b ---
+  family_id <- switch(fam_name,
+                      "binomial" = 1L,
+                      "poisson"  = 2L,
+                      "Gamma"    = 3L,
+                      "gaussian" = 4L,
+                      stop("Unsupported family: ", fam_name))
+
+  # --- link_id for C++ linkinv (if standard); else use R callback ---
+  link_id <- switch(link_name,
+                    "logit"    = 1L,
+                    "probit"   = 2L,
+                    "cauchit"  = 3L,
+                    "cloglog"  = 4L,
+                    "identity" = 5L,
+                    "log"      = 6L,
+                    "sqrt"     = 7L,
+                    "1/mu^2"   = 8L,
+                    "inverse"  = 9L,
+                    0L)  # 0 -> nonstandard, use R callback
+
+  linkinv_fun <- family$linkinv  # user may override
+
+  ## ---- create ll with explicit formals for mle2 ----
+  trm <- terms(formula, data = mf)
+  vars <- attr(trm, "term.labels")
+  has_int <- attr(trm, "intercept") == 1
+  if (has_int) vars <- c("(Intercept)", vars)
+  if (tau2_var) vars <- c(vars, "tau2")
+  K <- length(vars)
+
+  arg_list <- vector("list", K)
+  names(arg_list) <- vars
+
+  ll <- function() NULL
+  formals(ll) <- arg_list
+
+  if (tau2_var) {
+    beta_call <- as.call(c(as.name("c"), lapply(vars[-K], as.name)))
+    body(ll) <- bquote({
+      beta <- .(beta_call)
+
+      tau2_use <- max(tau2, .(tau2.min))
+      etak <- as.vector(.(X) %*% beta)
+
+      res <- ghq_nll_groups(etak = etak,
+                            y = .(yk),
+                            factor = .(factor_vec),
+                            gid = .(gid0),
+                            Z = .(Z),
+                            tau2 = tau2_use,
+                            family_id = .(family_id),
+                            link_id = .(link_id),
+                            linkinv_fun = .(linkinv_fun))
+
+      total <- res$nll_total
+      attr(total, "ll_vec") <- res$nll_group
+      total
+    })
+  } else {
+    beta_call <- as.call(c(as.name("c"), lapply(vars, as.name)))
+    body(ll) <- bquote({
+      beta <- .(beta_call)
+
+      tau2_use <- max(.(tau2), .(tau2.min))
+      etak <- as.vector(.(X) %*% beta)
+
+      res <- ghq_nll_groups(etak = etak,
+                            y = .(yk),
+                            factor = .(factor_vec),
+                            gid = .(gid0),
+                            Z = .(Z),
+                            tau2 = tau2_use,
+                            family_id = .(family_id),
+                            link_id = .(link_id),
+                            linkinv_fun = .(linkinv_fun))
+
+      res$nll_total
+    })
+  }
+
+  ll
+}
+
