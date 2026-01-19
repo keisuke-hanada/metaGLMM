@@ -16,9 +16,146 @@
 #'
 #'@export
 metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_group=NULL, trt=NULL,
+                     rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
+                     skip.hessian = FALSE, fast=TRUE, ghq_Q = 30L, method_opt=NULL,
+                     start_beta=NULL, start_tau2=NULL,
+                     tau2_param = c("tau2", "log_tau2"),
+                     control=NULL, ...) {
+
+  tau2_param <- match.arg(tau2_param)
+
+  ## set initial value (beta)
+  trm <- terms(formula, data = data)
+  vars <- attr(trm, "term.labels")
+  has_int <- attr(trm, "intercept") == 1
+  if (has_int) vars <- c("(Intercept)", vars)
+
+  if (is.null(start_beta)) {
+    vals <- rnorm(length(vars)) - 2
+    names(vals) <- vars
+  } else {
+    if (is.list(start_beta)) start_beta <- unlist(start_beta, use.names = TRUE)
+    if (is.null(names(start_beta))) stop("start_beta must be a named vector (or named list).")
+    if (!all(vars %in% names(start_beta))) {
+      miss <- setdiff(vars, names(start_beta))
+      stop(paste0("start_beta is missing: ", paste(miss, collapse = ", ")))
+    }
+    vals <- as.numeric(start_beta[vars])
+    names(vals) <- vars
+  }
+  beta_init <- as.list(vals)
+  names(beta_init) <- vars
+
+  ## define log likelihood (base ll)
+  if (fast) {
+    ll_base <- make_ll_fun.fast(formula=formula, data=data, vi=vi, ni=ni,
+                                tau2=tau2, family=family, tau2_var=tau2_var,
+                                rstdnorm=rstdnorm, re_group=re_group, trt=trt,
+                                ghq_Q = ghq_Q)
+  } else {
+    ll_base <- make_ll_fun(formula=formula, data=data, vi=vi, ni=ni,
+                           tau2=tau2, family=family, tau2_var=tau2_var,
+                           rstdnorm=rstdnorm, re_group=re_group, trt=trt,
+                           ghq_Q = ghq_Q)
+  }
+
+  ## maximum likelihood estimation
+  if (tau2_var) {
+
+    # default controls
+    control_def <- list(maxit = 20000, factr = 1e7, pgtol = 1e-8)
+    control_use <- if (is.null(control)) control_def else modifyList(control_def, control)
+
+    # start tau2
+    if (is.null(start_tau2)) start_tau2 <- 1
+
+    if (tau2_param == "tau2") {
+
+      # boundary form (current)
+      lower <- as.list(rep(-Inf, length(beta_init)))
+      upper <- as.list(rep( Inf, length(beta_init)))
+      names(lower) <- names(upper) <- vars
+      lower$tau2 <- 0
+      upper$tau2 <- Inf
+
+      start_list <- c(beta_init, tau2 = start_tau2)
+      if (is.null(method_opt)) method_opt <- "L-BFGS-B"
+
+      fit <- bbmle::mle2(ll_base, start=start_list,
+                         skip.hessian=skip.hessian, method=method_opt,
+                         lower=lower, upper=upper, control=control_use, ...)
+
+      return(fit)
+
+    } else {
+
+      # ---- log reparam: estimate log_tau2, call ll_base with tau2=exp(log_tau2) ----
+      # make a wrapper minuslogl for mle2 that has formals (..., log_tau2)
+      # but internally calls ll_base(..., tau2=exp(log_tau2))
+      ll_wrap <- function() NULL
+
+      # create formals: same betas + log_tau2
+      arg_list <- vector("list", length(vars) + 1L)
+      names(arg_list) <- c(vars, "log_tau2")
+      formals(ll_wrap) <- arg_list
+
+      # build beta call
+      beta_call <- as.call(c(as.name("c"), lapply(vars, as.name)))
+
+      # body: call ll_base with tau2 = exp(log_tau2)
+      body(ll_wrap) <- bquote({
+        beta <- .(beta_call)
+        tau2_use <- exp(log_tau2)
+        # ll_base expects named args, including tau2
+        args <- as.list(beta)
+        args$tau2 <- tau2_use
+        do.call(.(ll_base), args)
+      })
+
+      # start values
+      start_list <- c(beta_init, log_tau2 = log(max(start_tau2, 1e-12)))
+
+      # method: boundary gone -> BFGS is usually better than L-BFGS-B here
+      if (is.null(method_opt)) method_opt <- "BFGS"
+
+      # controls for BFGS
+      control_def2 <- list(maxit = 20000, reltol = 1e-10)
+      control_use2 <- if (is.null(control)) control_def2 else modifyList(control_def2, control)
+
+      fit <- bbmle::mle2(ll_wrap, start=start_list,
+                         skip.hessian=skip.hessian, method=method_opt,
+                         control=control_use2, ...)
+
+      # attach tau2 on original scale for downstream use
+      # (confint_PL のコードが "tau2" 名を期待している場合に備える)
+      coef_fit <- coef(fit)
+      tau2_hat <- exp(unname(coef_fit["log_tau2"]))
+      attr(fit, "tau2_hat") <- tau2_hat
+      attr(fit, "tau2_param") <- "log_tau2"
+
+      return(fit)
+    }
+
+  } else {
+
+    # no tau2: default controls
+    control_def <- list(maxit = 20000, reltol = 1e-10)
+    control_use <- if (is.null(control)) control_def else modifyList(control_def, control)
+    if (is.null(method_opt)) method_opt <- "BFGS"
+
+    fit <- bbmle::mle2(ll_base, start=beta_init,
+                       skip.hessian=skip.hessian,
+                       control=control_use, method=method_opt, ...)
+
+    return(fit)
+  }
+}
+
+
+metaGLMM_old <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_group=NULL, trt=NULL,
                  rstdnorm=qnorm((qrng::sobol(5000, d=1, scrambling=1)*(5000-1) + 0.5) / 5000),
-                 skip.hessian = FALSE, fast=FALSE, ghq_Q = 30L,
-                 start_beta=NULL, start_tau2=NULL, ...){
+                 skip.hessian = FALSE, fast=TRUE, ghq_Q = 30L, method_opt=NULL,
+                 start_beta=NULL, start_tau2=NULL, control=NULL, ...){
 
   ## set initial value
   trm <- terms(formula, data = data)
@@ -72,15 +209,30 @@ metaGLMM <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_grou
     if (is.null(start_tau2)) start_tau2 <- 1
     start_list <- c(beta_init, tau2 = start_tau2)
 
+    # default controls for L-BFGS-B
+    control_def <- list(maxit = 20000, factr = 1e7, pgtol = 1e-8)
+    control_use <- if (is.null(control)) control_def else modifyList(control_def, control)
+
+    if ( is.null(method_opt) ) method_opt <- "L-BFGS-B"
+
+
     fit <- bbmle::mle2(ll, start=start_list,
-                       skip.hessian=skip.hessian, method= "L-BFGS-B",
+                       skip.hessian=skip.hessian, method=method_opt,
                 lower = lower, upper = upper,
-                control = list(maxit=2e4), ...)
+                control = control_use, ...)
 
   }else {
+
+    # default controls for BFGS/Nelder-Mead etc.
+    control_def <- list(maxit = 20000, reltol = 1e-10)
+    control_use <- if (is.null(control)) control_def else modifyList(control_def, control)
+
+    if ( is.null(method_opt) ) method_opt <- "BFGS"
+
+
     fit <- bbmle::mle2(ll, start=beta_init,
                        skip.hessian=skip.hessian,
-                control = list(reltol=1e-12, maxit=2e4), ...)
+                control = control_use, method=method_opt, ...)
   }
 
 
@@ -143,7 +295,7 @@ confint_AN <- function(object, parm=names(coef(object))[-length(coef(object))], 
 #'@return a matrix of confidence interval using profile likelihood method.
 #'
 #'@export
-confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30){
+confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30, silent=FALSE){
 
   vars <- names(coef(object))
   lower <- upper <- numeric(length(parm))
@@ -152,7 +304,7 @@ confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], 
   for(i in 1:length(parm)){
 
     var_name <- parm[i]
-    init <- numeric(length(vars)-1)
+    init <- coef(object)[vars!=var_name]
 
     mll <- function(var, init){
 
@@ -169,16 +321,17 @@ confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], 
 
       if (length(init)==1) {
 
-        renge_tau2 <- renge.c*diag(vcov(object))["tau2"]*qnorm(1-(1-level)/2)
-        x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
+        seval <- sqrt(diag(vcov(object))[2])
+        renge_tau2 <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
+        x <- optimize(mll, var=var, interval=c(-renge_tau2+coef(object)[2], renge_tau2+coef(object)[2]))
         tau2h <- x$minimum
-        return_val <- 2*(x$objective + logLik(object)) - qchisq(0.95, df=1)
+        return_val <- 2*(x$objective + logLik(object)) - qchisq(level, df=1)
 
       } else {
 
         x <- optim(par=init, mll, var=var)
         tau2h <- x$par[length(vars)-1]
-        return_val <- 2*(x$value + logLik(object)) - qchisq(0.95, df=1)
+        return_val <- 2*(x$value + logLik(object)) - qchisq(level, df=1)
 
       }
 
@@ -186,17 +339,22 @@ confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], 
 
     }
 
-    renge <- renge.c*diag(vcov(object))[var_name]*qnorm(1-(1-level)/2)
-    cil <- try(uniroot(pl, init=init, interval=c(-renge+coef(object)[var_name], coef(object)[var_name]))$root)
+    seval <- sqrt(diag(vcov(object))[var_name])
+    renge <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
+    cil <- try(uniroot(pl, init=init,
+                       interval=c(-renge+coef(object)[var_name], coef(object)[var_name])
+                       )$root, silent=silent)
     if (class(cil)[1]=="try-error") {
-      lower[i] <- NA
+      lower[i] <- -Inf
     } else {
       lower[i] <- cil
     }
 
-    ciu <- try(uniroot(pl, init=init, interval=c(coef(object)[var_name], renge+coef(object)[var_name]))$root)
+    ciu <- try(uniroot(pl, init=init,
+                       interval=c(coef(object)[var_name], renge+coef(object)[var_name])
+                       )$root, silent=silent)
     if (class(ciu)[1]=="try-error") {
-      upper[i] <- NA
+      upper[i] <- Inf
     } else {
       upper[i] <- ciu
     }
@@ -217,17 +375,18 @@ confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], 
 #'@return a matrix of confidence interval using profile likelihood with simple Bartlett correction.
 #'
 #'@export
-confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30){
+confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30, silent=FALSE){
 
   vars <- names(coef(object))
   lower <- upper <- numeric(length(parm))
   names(lower) <- names(upper) <- parm
   vi <- environment(object)$vi
+  tau2_exp_true <- "log_tau2" %in% vars
 
   for(i in 1:length(parm)){
 
     var_name <- parm[i]
-    init <- numeric(length(vars)-1)
+    init <- coef(object)[vars!=var_name]
 
     mll <- function(var, init){
 
@@ -244,18 +403,23 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
 
       if (length(init)==1) {
 
-        renge_tau2 <- renge.c*diag(vcov(object))["tau2"]*qnorm(1-(1-level)/2)
-        x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
+        seval <- sqrt(diag(vcov(object))[2])
+        renge_tau2 <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
+
+        # x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
+        x <- optimize(mll, var=var, interval=c(-renge_tau2+coef(object)[2], renge_tau2+coef(object)[2]))
         tau2h <- x$minimum
+        if (tau2_exp_true) tau2h <- exp(tau2h)
         correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
-        return_val <- 2*(x$objective + logLik(object))/(1+2*correct) - qchisq(0.95, df=1)
+        return_val <- 2*(x$objective + logLik(object))/(1+2*correct) - qchisq(level, df=1)
 
       } else {
 
         x <- optim(par=init, mll, var=var)
         tau2h <- x$par[length(vars)-1]
+        if (tau2_exp_true) tau2h <- exp(tau2h)
         correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
-        return_val <- 2*(x$value + logLik(object))/(1+2*correct) - qchisq(0.95, df=1)
+        return_val <- 2*(x$value + logLik(object))/(1+2*correct) - qchisq(level, df=1)
 
       }
 
@@ -263,18 +427,18 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
 
     }
 
-
-    renge <- renge.c*diag(vcov(object))[var_name]*qnorm(1-(1-level)/2)
-    cil <- try(uniroot(plsbc, init=init, interval=c(-renge+coef(object)[var_name], coef(object)[var_name]))$root)
+    seval <- sqrt(diag(vcov(object))[var_name])
+    renge <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
+    cil <- try(uniroot(plsbc, init=init, interval=c(-renge+coef(object)[var_name], coef(object)[var_name]))$root, silent=silent)
     if (class(cil)[1]=="try-error") {
-      lower[i] <- NA
+      lower[i] <- -Inf
     } else {
       lower[i] <- cil
     }
 
-    ciu <- try(uniroot(plsbc, init=init, interval=c(coef(object)[var_name], renge+coef(object)[var_name]))$root)
+    ciu <- try(uniroot(plsbc, init=init, interval=c(coef(object)[var_name], renge+coef(object)[var_name]))$root, silent=silent)
     if (class(ciu)[1]=="try-error") {
-      upper[i] <- NA
+      upper[i] <- Inf
     } else {
       upper[i] <- ciu
     }
@@ -295,18 +459,20 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
 #'@return a matrix of confidence interval using profile likelihood with simple Bartlett correction.
 #'
 #'@export
-confint_GSBC <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30){
+confint_GSBC <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30, silent=FALSE){
 
   vars <- names(coef(object))
   lower <- upper <- numeric(length(parm))
   names(lower) <- names(upper) <- parm
   vi <- environment(object)$vi
+  tau2_exp_true <- "log_tau2" %in% vars
+
 
   for(i in 1:length(parm)){
 
     var_name <- parm[i]
-    # init <- numeric(length(vars)-1)
-    init <- coef(object)[names(coef(object))!=var_name]
+    init <- coef(object)[vars!=var_name]
+
 
     mll <- function(var, init){
 
@@ -323,26 +489,31 @@ confint_GSBC <- function(object, parm=names(coef(object))[-length(coef(object))]
 
       if (length(init)==1) {
 
-        renge_tau2 <- renge.c*diag(vcov(object))["tau2"]*qnorm(1-(1-level)/2)
+        # renge_tau2 <- renge.c*diag(vcov(object))["tau2"]*qnorm(1-(1-level)/2)
+        renge_tau2 <- renge.c*diag(vcov(object))[2]*qnorm(1-(1-level)/2)
         x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
         tau2h <- x$minimum
+        if (tau2_exp_true) tau2h <- exp(tau2h)
+
         correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
         r_tau2 <- calc_r_tau2(var=var, init=x$par, tau2h=tau2h, mll=mll,
                               tau2.min=1e-4, diff_step=1e-2, cap=50)
         if (!is.finite(r_tau2)) r_tau2 <- 1
         correct <- correct * r_tau2
-        return_val <- 2*(x$objective + logLik(object))/(1+2*correct) - qchisq(0.95, df=1)
+        return_val <- 2*(x$objective + logLik(object))/(1+2*correct) - qchisq(level, df=1)
 
       } else {
 
         x <- optim(par=init, mll, var=var)
         tau2h <- x$par[length(vars)-1]
+        if (tau2_exp_true) tau2h <- exp(tau2h)
+
         correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
         r_tau2 <- calc_r_tau2(var=var, init=x$par, tau2h=tau2h, mll=mll,
                               tau2.min=1e-4, diff_step=1e-2, cap=10)
         if (!is.finite(r_tau2)) r_tau2 <- 1
         correct <- correct * r_tau2
-        return_val <- 2*(x$value + logLik(object))/(1+2*correct) - qchisq(0.95, df=1)
+        return_val <- 2*(x$value + logLik(object))/(1+2*correct) - qchisq(level, df=1)
 
       }
 
@@ -352,14 +523,14 @@ confint_GSBC <- function(object, parm=names(coef(object))[-length(coef(object))]
 
 
     renge <- renge.c*diag(vcov(object))[var_name]*qnorm(1-(1-level)/2)
-    cil <- try(uniroot(plsbc, init=init, interval=c(-renge+coef(object)[var_name], coef(object)[var_name]))$root)
+    cil <- try(uniroot(plsbc, init=init, interval=c(-renge+coef(object)[var_name], coef(object)[var_name]))$root, silent=silent)
     if (class(cil)[1]=="try-error") {
       lower[i] <- NA
     } else {
       lower[i] <- cil
     }
 
-    ciu <- try(uniroot(plsbc, init=init, interval=c(coef(object)[var_name], renge+coef(object)[var_name]))$root)
+    ciu <- try(uniroot(plsbc, init=init, interval=c(coef(object)[var_name], renge+coef(object)[var_name]))$root, silent=silent)
     if (class(ciu)[1]=="try-error") {
       upper[i] <- NA
     } else {

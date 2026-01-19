@@ -16,10 +16,11 @@ metaGLMM(
   trt = NULL,
   rstdnorm = qnorm((qrng::sobol(5000, d = 1, scrambling = 1) * (5000 - 1) + 0.5)/5000),
   skip.hessian = FALSE,
-  fast = FALSE,
+  fast = TRUE,
   ghq_Q = 30L,
   start_beta = NULL,
   start_tau2 = NULL,
+  control = NULL,
   ...
 )
 }
