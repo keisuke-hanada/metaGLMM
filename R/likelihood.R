@@ -375,7 +375,13 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var = FAL
   }
 
   a_phik  <- a_fun(vi)
-  factor0 <- ni / a_phik
+
+  if (fam_name == "gaussian") {
+    factor0 <- 1 / a_phik
+  } else {
+    factor0 <- ni / a_phik
+  }
+
 
   ## ----- link_id mapping (make.link list) -----
   link_map <- c(

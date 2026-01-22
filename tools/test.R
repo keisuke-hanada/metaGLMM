@@ -33,18 +33,18 @@ system.time(
 )
 ci.pl
 
-system.time(
-  ci.plsbc <- confint_SBC(ma.grma, parm="zk")
-)
-ci.plsbc
+# system.time(
+#   ci.plsbc <- confint_SBC(ma.grma, parm="zk")
+# )
+# ci.plsbc
+#
+# system.time(
+#   ci.plgsbc <- confint_GSBC(ma.grma, parm="zk")
+# )
+# ci.plgsbc
 
-system.time(
-  ci.plgsbc <- confint_GSBC(ma.grma, parm="zk")
-)
-ci.plgsbc
 
-
-ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA,
+ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
                     family=gaussian(link="identity"), tau2_var=TRUE, fast=TRUE)
 summary(ma.grma)
 
