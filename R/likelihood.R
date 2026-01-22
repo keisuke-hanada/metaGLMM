@@ -452,30 +452,23 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var = FAL
           b <- .(gptr)[g + 1L]
           idx <- a:b
 
-          fj <- .(factor)[idx]
           yj <- .(yk)[idx]
-          et <- etak[idx]
+          mu <- etak[idx]
           zj <- .(Z)[idx]
 
-          # C0 + B0*v + A0*v^2 with prior N(0,tau2)
-          C0 <- sum(fj * (yj * et - 0.5 * et * et))
-          B0 <- sum(fj * zj * (yj - et))
-          A0 <- -0.5 * sum(fj * zj * zj)
+          # summary-level variance (must be variance, not SE)
+          vj <- .(a_phik)[idx] + zj * tau2_use
+          vj <- pmax(vj, .(tau2.min))  # numerical safety (optional)
 
-          A  <- A0 - 0.5 / tau2_use  # A < 0
+          # negative log-likelihood up to an additive constant
+          nll <- 0.5 * sum(log(vj) + (yj - mu)^2 / vj)
 
-          logLg <- C0 - (B0 * B0) / (4 * A) +
-            0.5 * log(.(pi_const) / (-A)) -
-            0.5 * log(2 * .(pi_const) * tau2_use)
-
-          ll_g <- -logLg
-          ll_vec[g] <- ll_g
-          total <- total + ll_g
+          ll_vec[g] <- nll
+          total <- total + nll
         }
 
         attr(total, "ll_vec") <- ll_vec
         total
-
       } else {
 
         if (!exists("ghq_nll_groups_fast", mode = "function")) {
@@ -514,30 +507,30 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var = FAL
       if (.(use_closed_form_gaussian)) {
         total <- 0.0
         G <- length(.(gptr)) - 1L
+        ll_vec <- numeric(G)
 
         for (g in seq_len(G)) {
           a <- .(gptr)[g] + 1L
           b <- .(gptr)[g + 1L]
           idx <- a:b
 
-          fj <- .(factor)[idx]
           yj <- .(yk)[idx]
-          et <- etak[idx]
+          mu <- etak[idx]
           zj <- .(Z)[idx]
 
-          C0 <- sum(fj * (yj * et - 0.5 * et * et))
-          B0 <- sum(fj * zj * (yj - et))
-          A0 <- -0.5 * sum(fj * zj * zj)
-          A  <- A0 - 0.5 / tau2_use
+          # summary-level variance (must be variance, not SE)
+          vj <- .(a_phik)[idx] + zj * tau2_use
+          vj <- pmax(vj, .(tau2.min))  # numerical safety (optional)
 
-          logLg <- C0 - (B0 * B0) / (4 * A) +
-            0.5 * log(.(pi_const) / (-A)) -
-            0.5 * log(2 * .(pi_const) * tau2_use)
+          # negative log-likelihood up to an additive constant
+          nll <- 0.5 * sum(log(vj) + (yj - mu)^2 / vj)
 
-          total <- total + (-logLg)
+          ll_vec[g] <- nll
+          total <- total + nll
         }
-        total
 
+        attr(total, "ll_vec") <- ll_vec
+        total
       } else {
 
         if (!exists("ghq_nll_groups_fast", mode = "function")) {

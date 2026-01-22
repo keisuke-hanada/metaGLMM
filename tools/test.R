@@ -8,13 +8,15 @@ library(dplyr)
 
 set.seed(1234)
 
-n <- 30
+n <- 10
 nk <- numeric(n) + 30
-zk <- rnorm(n)
-beta <- c(1,0)
-tau2 <- 3
-vk <- (rchisq(n, df=1) - 1) * sqrt(tau2/2)
-# vk <- rnorm(n, sd=sqrt(tau2))
+zk <- rep(0:1, each=n/2)
+study <- rep(1:(n/2), 2)
+
+beta <- c(2,-3)
+tau2 <- 10
+# vk <- (rchisq(n, df=1) - 1) * sqrt(tau2/2)
+vk <- rnorm(n, sd=sqrt(tau2))
 v2yk <- 50/nk
 yk <- beta[1] + beta[2]*zk + rnorm(n, sd=sqrt(v2yk)) + vk
 
@@ -45,7 +47,7 @@ ci.pl
 
 
 ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
-                    family=gaussian(link="identity"), tau2_var=TRUE, fast=TRUE)
+                    family=gaussian(link="identity"), tau2_var=TRUE, fast=TRUE, re_group=study, trt="zk")
 summary(ma.grma)
 
 
