@@ -380,7 +380,26 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
   vars <- names(coef(object))
   lower <- upper <- numeric(length(parm))
   names(lower) <- names(upper) <- parm
-  vi <- environment(object)$vi
+
+  re_groups <- environment(object)$re_group
+  vi0 <- environment(object)$vi
+  if (is.null(re_groups)) {
+
+    vi <- vi0
+
+  } else {
+
+    u_re <- unique(re_groups)
+    n_re <- length(u_re)
+    vi <- numeric(n_re)
+
+    for (i.re in 1:n_re) {
+
+      vi[i.re] <- sum(vi0[re_groups==u_re[i.re]])
+    }
+
+  }
+
   tau2_exp_true <- "log_tau2" %in% vars
 
   for(i in 1:length(parm)){
@@ -406,7 +425,6 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
         seval <- sqrt(diag(vcov(object))[2])
         renge_tau2 <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
 
-        # x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
         x <- optimize(mll, var=var, interval=c(-renge_tau2+coef(object)[2], renge_tau2+coef(object)[2]))
         tau2h <- x$minimum
         if (tau2_exp_true) tau2h <- exp(tau2h)

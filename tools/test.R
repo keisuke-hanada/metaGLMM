@@ -73,7 +73,8 @@ set.seed(1234)
 
 n <- 10
 nk <- numeric(n) + 30
-zk <- rnorm(n)
+zk <- rep(0:1, each=n/2)
+study <- rep(1:(n/2), 2)
 beta <- c(-2,0.5)
 tau2 <- 0
 # vk <- (rchisq(n, df=1) - 1) * sqrt(tau2/2)
@@ -93,7 +94,8 @@ dat3 <- model.frame(formula=yk ~ 1 + zk,
 
 
 ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA,
-                    family=binomial(link="logit"), tau2_var=TRUE, fast=FALSE)
+                    family=binomial(link="logit"), tau2_var=TRUE, fast=FALSE,
+                    re_group=study, trt="zk")
 summary(ma.grma)
 
 system.time(
@@ -104,9 +106,10 @@ ci.pl
 
 
 
-ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="log_tau2",
+ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
                     family=binomial(link="logit"), tau2_var=TRUE, fast=TRUE,
-                    start_beta=coef(ma.grma)[-3], start_tau2 = 1)
+                    start_beta=coef(ma.grma)[-3], start_tau2 = 1,
+                    re_group=study, trt="zk")
 summary(ma.grma)
 exp(coef(ma.grma))
 
