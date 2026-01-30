@@ -323,7 +323,9 @@ confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], 
 
         seval <- sqrt(diag(vcov(object))[2])
         renge_tau2 <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
-        x <- optimize(mll, var=var, interval=c(-renge_tau2+coef(object)[2], renge_tau2+coef(object)[2]))
+        renge_min <- max(0, -renge_tau2+coef(object)[2])
+        renge_max <- renge_tau2+coef(object)[2]
+        x <- optimize(mll, var=var, interval=c(renge_min, renge_max))
         tau2h <- x$minimum
         return_val <- 2*(x$objective + logLik(object)) - qchisq(level, df=1)
 
@@ -424,6 +426,8 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
 
         seval <- sqrt(diag(vcov(object))[2])
         renge_tau2 <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
+        renge_min <- max(0, -renge_tau2+coef(object)[2])
+        renge_max <- renge_tau2+coef(object)[2]
 
         x <- optimize(mll, var=var, interval=c(-renge_tau2+coef(object)[2], renge_tau2+coef(object)[2]))
         tau2h <- x$minimum

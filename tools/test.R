@@ -8,13 +8,14 @@ library(dplyr)
 
 set.seed(1234)
 
-n <- 10
+n <- 5
 nk <- numeric(n) + 30
 zk <- rep(0:1, each=n/2)
+zk <- rnorm(n)
 study <- rep(1:(n/2), 2)
 
-beta <- c(2,-3)
-tau2 <- 10
+beta <- c(2,0)
+tau2 <- 1
 # vk <- (rchisq(n, df=1) - 1) * sqrt(tau2/2)
 vk <- rnorm(n, sd=sqrt(tau2))
 v2yk <- 50/nk
@@ -26,14 +27,14 @@ dat3 <- model.frame(formula=yk ~ 1 + zk,
 
 
 
-ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA,
-                    family=gaussian(link="identity"), tau2_var=TRUE, fast=FALSE)
-summary(ma.grma)
-
-system.time(
-  ci.pl <- confint_PL(ma.grma, parm="zk")
-)
-ci.pl
+# ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
+#                     family=gaussian(link="identity"), tau2_var=TRUE, fast=FALSE)
+# summary(ma.grma)
+#
+# system.time(
+#   ci.pl <- confint_PL(ma.grma, parm="zk")
+# )
+# ci.pl
 
 # system.time(
 #   ci.plsbc <- confint_SBC(ma.grma, parm="zk")
@@ -44,6 +45,22 @@ ci.pl
 #   ci.plgsbc <- confint_GSBC(ma.grma, parm="zk")
 # )
 # ci.plgsbc
+
+
+ma.grma <- metaGLMM(formula=yk ~ 1, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
+                    family=gaussian(link="identity"), tau2_var=TRUE, fast=TRUE)
+summary(ma.grma)
+
+system.time(
+  ci.pl <- confint_PL(ma.grma, parm="(Intercept)")
+)
+ci.pl
+ci.pl[,2]-ci.pl[,1]
+
+system.time(
+  ci.plsbc <- confint_SBC(ma.grma, parm="(Intercept)")
+)
+ci.plsbc
 
 
 ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
