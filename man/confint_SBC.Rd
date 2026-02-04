@@ -8,7 +8,8 @@ confint_SBC(
   object,
   parm = names(coef(object))[-length(coef(object))],
   level = 0.95,
-  renge.c = 30
+  renge.c = 30,
+  silent = FALSE
 )
 }
 \arguments{

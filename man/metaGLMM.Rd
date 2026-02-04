@@ -18,8 +18,10 @@ metaGLMM(
   skip.hessian = FALSE,
   fast = TRUE,
   ghq_Q = 30L,
+  method_opt = NULL,
   start_beta = NULL,
   start_tau2 = NULL,
+  tau2_param = c("tau2", "log_tau2"),
   control = NULL,
   ...
 )

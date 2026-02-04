@@ -397,6 +397,7 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var = FAL
   Z      <- as.numeric(Z0[ord])
   factor <- as.numeric(factor0[ord])
   X      <- X0[ord, , drop = FALSE]
+  a_phik_sorted <- as.numeric(a_phik[ord])
 
   rle_g <- rle(re_sorted)
   lens  <- rle_g$lengths
@@ -457,7 +458,7 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var = FAL
           zj <- .(Z)[idx]
 
           # summary-level variance (must be variance, not SE)
-          vj <- .(a_phik)[idx] + zj * tau2_use
+          vj <- .(a_phik_sorted)[idx] + zj * tau2_use
           vj <- pmax(vj, .(tau2.min))  # numerical safety (optional)
 
           # negative log-likelihood up to an additive constant
@@ -519,7 +520,7 @@ make_ll_fun.fast <- function(formula, data, vi, ni, tau2, family, tau2_var = FAL
           zj <- .(Z)[idx]
 
           # summary-level variance (must be variance, not SE)
-          vj <- .(a_phik)[idx] + zj * tau2_use
+          vj <- .(a_phik_sorted)[idx] + zj * tau2_use
           vj <- pmax(vj, .(tau2.min))  # numerical safety (optional)
 
           # negative log-likelihood up to an additive constant
