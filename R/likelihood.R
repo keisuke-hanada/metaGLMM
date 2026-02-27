@@ -191,7 +191,12 @@ make_ll_fun <- function(formula, data, vi, ni, tau2, family, tau2_var=FALSE,
   }
 
   a_phik <- a_fun(vi)              # length strata
-  factor <- ni / a_phik            # length strata
+  # factor <- ni / a_phik            # length strata
+  if (fam_name == "gaussian") {
+    factor <- 1 / a_phik
+  } else {
+    factor <- ni / a_phik
+  }
 
 
   ## --- group indices fixed here (default: each row is its own group) ---

@@ -428,8 +428,8 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
         renge_tau2 <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
         renge_min <- max(0, -renge_tau2+coef(object)[2])
         renge_max <- renge_tau2+coef(object)[2]
+        x <- optimize(mll, var=var, interval=c(renge_min, renge_max))
 
-        x <- optimize(mll, var=var, interval=c(-renge_tau2+coef(object)[2], renge_tau2+coef(object)[2]))
         tau2h <- x$minimum
         if (tau2_exp_true) tau2h <- exp(tau2h)
         correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
@@ -511,9 +511,12 @@ confint_GSBC <- function(object, parm=names(coef(object))[-length(coef(object))]
 
       if (length(init)==1) {
 
-        # renge_tau2 <- renge.c*diag(vcov(object))["tau2"]*qnorm(1-(1-level)/2)
-        renge_tau2 <- renge.c*diag(vcov(object))[2]*qnorm(1-(1-level)/2)
-        x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
+        seval <- sqrt(diag(vcov(object))[2])
+        renge_tau2 <- renge.c*(max(seval,0, na.rm=TRUE)*qnorm(1-(1-level)/2) + 0.1)
+        renge_min <- max(0, -renge_tau2+coef(object)[2])
+        renge_max <- renge_tau2+coef(object)[2]
+        x <- optimize(mll, var=var, interval=c(renge_min, renge_max))
+
         tau2h <- x$minimum
         if (tau2_exp_true) tau2h <- exp(tau2h)
 
@@ -734,6 +737,7 @@ calc_r_tau2 <- function(var, init, tau2h, mll, tau2.min = 1e-6,
   if (!is.finite(J) || J <= 0) return(1)
 
   r_raw <- H / J
+  # r_raw <- J / H
   if (!is.finite(r_raw)) return(1)
 
   # optional smoothing toward 1 (smooth=1 means no smoothing)
