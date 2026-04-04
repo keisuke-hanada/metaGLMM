@@ -27,26 +27,6 @@ dat3 <- model.frame(formula=yk ~ 1 + zk,
 
 
 
-# ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
-#                     family=gaussian(link="identity"), tau2_var=TRUE, fast=FALSE)
-# summary(ma.grma)
-#
-# system.time(
-#   ci.pl <- confint_PL(ma.grma, parm="zk")
-# )
-# ci.pl
-
-# system.time(
-#   ci.plsbc <- confint_SBC(ma.grma, parm="zk")
-# )
-# ci.plsbc
-#
-# system.time(
-#   ci.plgsbc <- confint_GSBC(ma.grma, parm="zk")
-# )
-# ci.plgsbc
-
-
 ma.grma <- metaGLMM(formula=yk ~ 1, data=dat3, vi=v2yk, ni=nk, tau2=NA, tau2_param="tau2",
                     family=gaussian(link="identity"), tau2_var=TRUE, fast=TRUE)
 summary(ma.grma)
@@ -113,20 +93,6 @@ v2yk <- 1/(nk*yk) + 1/(nk-nk*yk)
 dat3 <- model.frame(formula=yk ~ 1 + zk,
                     data.frame(yk, zk)
 )
-
-
-
-
-# ma.grma <- metaGLMM(formula=yk ~ 1 + zk, data=dat3, vi=v2yk, ni=nk, tau2=NA,
-#                     family=binomial(link="logit"), tau2_var=TRUE, fast=FALSE,
-#                     re_group=study, trt="zk")
-# summary(ma.grma)
-#
-# system.time(
-#   ci.pl <- confint_PL(ma.grma, parm="zk")
-# )
-# ci.pl
-
 
 
 
