@@ -9,7 +9,8 @@ confint_SBC(
   parm = names(coef(object))[-length(coef(object))],
   level = 0.95,
   renge.c = 30,
-  silent = FALSE
+  silent = FALSE,
+  correction = c("corrected", "noma")
 )
 }
 \arguments{

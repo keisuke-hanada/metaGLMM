@@ -37,7 +37,7 @@ system.time(
 ci.pl
 
 system.time(
-  ci.plsbc <- confint_SBC(ma.grma, parm="(Intercept)")
+  ci.plsbc <- confint_SBC(ma.grma, parm="(Intercept)", correction="corrected")
 )
 ci.plsbc
 

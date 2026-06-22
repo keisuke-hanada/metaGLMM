@@ -4,7 +4,7 @@
 \alias{profile_ll_sbc}
 \title{profile likelihood with simple Bartlett correction for metaGLMM object.}
 \usage{
-profile_ll_sbc(value, object, parm)
+profile_ll_sbc(value, object, parm, correction = c("corrected", "noma"))
 }
 \arguments{
 \item{value}{a vector of parameter values.}

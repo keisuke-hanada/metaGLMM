@@ -250,10 +250,14 @@ metaGLMM_old <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_
 #'
 #'@export
 ci_metaGLMM <- function(object, parm=names(coef(object))[-length(coef(object))],
-                        method="PLSBC", level=0.95, renge.c=30){
+                        method="PLSBC", level=0.95, renge.c=30,
+                        correction = c("corrected", "noma")){
+
+  correction <- match.arg(correction)
 
   if (method=="PLSBC") {
-    res <- confint_SBC(object, parm=parm, level=level, renge.c=renge.c)
+    res <- confint_SBC(object, parm=parm, level=level, renge.c=renge.c,
+                       correction=correction)
   } else if (method=="PL") {
     res <- confint_PL(object, parm=parm, level=level, renge.c=renge.c)
   } else if (method=="AN") {
@@ -377,11 +381,13 @@ confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], 
 #'@return a matrix of confidence interval using profile likelihood with simple Bartlett correction.
 #'
 #'@export
-confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95, renge.c=30, silent=FALSE){
+confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))], level=0.95,
+                        renge.c=30, silent=FALSE, correction=c("corrected", "noma")){
 
   vars <- names(coef(object))
   lower <- upper <- numeric(length(parm))
   names(lower) <- names(upper) <- parm
+  correction <- match.arg(correction)
 
   re_groups <- environment(object)$re_group
   vi0 <- environment(object)$vi
@@ -433,6 +439,10 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
         tau2h <- x$minimum
         if (tau2_exp_true) tau2h <- exp(tau2h)
         correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
+        if (correction == "corrected") {
+          correct <- correct - sum(1/(vi+tau2h)^2) / (4*sum(1/(vi+tau2h))^2)
+        }
+
         return_val <- 2*(x$objective + logLik(object))/(1+2*correct) - qchisq(level, df=1)
 
       } else {
@@ -441,6 +451,10 @@ confint_SBC <- function(object, parm=names(coef(object))[-length(coef(object))],
         tau2h <- x$par[length(vars)-1]
         if (tau2_exp_true) tau2h <- exp(tau2h)
         correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
+        if (correction == "corrected") {
+          correct <- correct - sum(1/(vi+tau2h)^2) / (4*sum(1/(vi+tau2h))^2)
+        }
+
         return_val <- 2*(x$value + logLik(object))/(1+2*correct) - qchisq(level, df=1)
 
       }
@@ -628,8 +642,9 @@ profile_ll <- function(value, object, parm){
 #'@return a values of profile likelihood function.
 #'
 #'@export
-profile_ll_sbc <- function(value, object, parm){
+profile_ll_sbc <- function(value, object, parm, correction=c("corrected", "noma")){
 
+  correction <- match.arg(correction)
   vars <- names(coef(object))
   var_name <- parm
   init <- numeric(length(vars)-1)
@@ -654,6 +669,10 @@ profile_ll_sbc <- function(value, object, parm){
       x <- optimize(mll, var=var, interval=c(max(0,-renge_tau2+coef(object)[2]), renge_tau2+coef(object)[2]))
       tau2h <- x$minimum
       correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
+      if (correction == "corrected") {
+        correct <- correct - sum(1/(vi+tau2h)^2) / (4*sum(1/(vi+tau2h))^2)
+      }
+
       return_val <- 2*(x$objective + logLik(object))/(1+2*correct)
 
     } else {
@@ -661,6 +680,10 @@ profile_ll_sbc <- function(value, object, parm){
       x <- optim(par=init, mll, var=var)
       tau2h <- x$par[length(vars)-1]
       correct <- sum(1/(vi+tau2h)^3) / (sum(1/(vi+tau2h)) * sum(1/(vi+tau2h)^2))
+      if (correction == "corrected") {
+        correct <- correct - sum(1/(vi+tau2h)^2) / (4*sum(1/(vi+tau2h))^2)
+      }
+
       return_val <- 2*(x$value + logLik(object))/(1+2*correct)
 
     }

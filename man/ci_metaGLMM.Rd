@@ -9,7 +9,8 @@ ci_metaGLMM(
   parm = names(coef(object))[-length(coef(object))],
   method = "PLSBC",
   level = 0.95,
-  renge.c = 30
+  renge.c = 30,
+  correction = c("corrected", "noma")
 )
 }
 \arguments{
