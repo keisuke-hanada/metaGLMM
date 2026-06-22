@@ -23,6 +23,8 @@ ci_metaGLMM(
 \item{level}{a value of significance level. The default is 0.95.}
 
 \item{renge.c}{a value of search renge. The default is 30.}
+
+\item{correction}{a corrected term for simple Bartlett correction. The default is 'corrected'.}
 }
 \value{
 a matrix of confidence interval using profile likelihood with simple Bartlett correction.

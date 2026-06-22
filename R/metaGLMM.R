@@ -245,6 +245,7 @@ metaGLMM_old <- function(formula, data, vi, ni, tau2, family, tau2_var=TRUE, re_
 #'@param level a value of significance level. The default is 0.95.
 #'@param method method of estimating confidence interval. The default is 'PLSBC'.
 #'@param renge.c a value of search renge. The default is 30.
+#'@param correction a corrected term for simple Bartlett correction. The default is 'corrected'.
 #'
 #'@return a matrix of confidence interval using profile likelihood with simple Bartlett correction.
 #'
@@ -377,6 +378,7 @@ confint_PL <- function(object, parm=names(coef(object))[-length(coef(object))], 
 #'@param parm a vector of parameter names for estimating confidence interval.
 #'@param level a value of significance level. The default is 0.95.
 #'@param renge.c a value of search renge. The default is 30.
+#'@param correction a corrected term for simple Bartlett correction. The default is 'corrected'.
 #'
 #'@return a matrix of confidence interval using profile likelihood with simple Bartlett correction.
 #'
@@ -638,6 +640,7 @@ profile_ll <- function(value, object, parm){
 #'@param value a vector of parameter values.
 #'@param object object of metaGLMM function.
 #'@param parm parameter name for profile likelihood function.
+#'@param correction a corrected term for simple Bartlett correction. The default is 'corrected'.
 #'
 #'@return a values of profile likelihood function.
 #'

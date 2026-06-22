@@ -12,6 +12,8 @@ profile_ll_sbc(value, object, parm, correction = c("corrected", "noma"))
 \item{object}{object of metaGLMM function.}
 
 \item{parm}{parameter name for profile likelihood function.}
+
+\item{correction}{a corrected term for simple Bartlett correction. The default is 'corrected'.}
 }
 \value{
 a values of profile likelihood function.
